@@ -19,7 +19,7 @@
             background-color: var(--bg); color: #ffffff;
             font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
             overflow: hidden; touch-action: none;
-            user-select: none; 
+            user-select: none; /* 防止手機連按時選取文字 */
             -webkit-user-select: none;
         }
         #game-wrapper {
@@ -27,24 +27,33 @@
             display: flex; justify-content: center; align-items: center;
         }
         
+        /* 🚀 核心修復 1：絕不能將影片移出螢幕外！將其放在畫面正中央，用透明度隱藏並置於畫布底層，徹底繞過 Chrome/Edge 省電節流機制 */
         video { 
             position: absolute; 
-            top: -9999px;
-            left: -9999px;
-            width: 640px; 
-            height: 480px; 
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%; 
+            height: 100%; 
+            object-fit: contain;
+            opacity: 0.001; /* 保持極低透明度，瀏覽器仍會判定為"可見"而持續渲染 */
             pointer-events: none; 
-            z-index: -10;
+            z-index: 1;
         }
         
         canvas {
+            position: relative;
             width: 100%; height: 100%; object-fit: contain;
             background-color: #000;
+            z-index: 5; /* 蓋在影片上方 */
         }
+        /* UI 覆蓋層 */
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; display: flex; flex-direction: column;
+            z-index: 10;
         }
+        /* 頂部資訊與控制列 */
         .header {
             display: flex; justify-content: space-between; align-items: center;
             padding: 15px 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); z-index: 10;
@@ -66,6 +75,7 @@
             display: none; height: fit-content;
         }
 
+        /* 遊戲內控制面板 */
         #control-panel {
             display: none;
             pointer-events: auto;
@@ -90,6 +100,7 @@
         .ctrl-btn-red { background: var(--red); color: white; }
         .ctrl-btn-red:hover { background: #ff6b81; }
 
+        /* 彈出視窗 */
         .modal {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: var(--panel); padding: 30px; border-radius: 25px;
@@ -113,6 +124,7 @@
         .btn-yellow { background-color: var(--yellow); }
         .btn-full { width: 100%; margin-top: 10px; }
         
+        /* 選擇音樂模式按鈕 */
         .music-mode-selector {
             display: flex;
             justify-content: center;
@@ -134,6 +146,7 @@
             font-weight: bold;
         }
 
+        /* 歌曲選擇按鈕 */
         .song-btn {
             background: rgba(255,255,255,0.1);
             color: #fff;
@@ -166,6 +179,7 @@
             display: none;
         }
         
+        /* 訊息提示框 */
         #msg-box {
             position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
             background: var(--red); color: white; padding: 12px 24px;
@@ -174,6 +188,7 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
+        /* 底部動作提示 */
         #action-guide {
             position: absolute; bottom: 20px; width: 100%; text-align: center;
             font-size: 1.4rem; font-weight: bold; text-shadow: 2px 2px 4px #000;
@@ -194,6 +209,7 @@
             border: 1px dashed rgba(255,255,255,0.2);
         }
 
+        /* 📱 專為手機鍵盤模式設計的虛擬觸控按鈕 */
         #touch-controls {
             display: none;
             position: absolute;
@@ -224,6 +240,7 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.8);
         }
 
+        /* 遊戲封面 */
         #game-cover {
             width: 100%;
             max-width: 400px;
@@ -250,6 +267,7 @@
             .touch-btn { padding: 20px 0; font-size: 1.2rem; }
         }
     </style>
+    <!-- 引入 TensorFlow.js 與 Pose Detection 相關套件 -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.21.0/dist/tf-core.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@3.21.0/dist/tf-converter.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@3.21.0/dist/tf-backend-webgl.min.js"></script>
@@ -257,6 +275,7 @@
 </head>
 <body>
 
+    <!-- 遊戲音樂主播放器 -->
     <audio id="bgm" crossorigin="anonymous"></audio>
 
     <div id="msg-box">提示訊息</div>
@@ -271,6 +290,7 @@
                 
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
                     <div id="timer-box">1:30</div>
+                    <!-- 控制面板：播放、暫停、回首頁 -->
                     <div id="control-panel">
                         <button class="ctrl-btn" id="btn-play-pause" onclick="togglePlayPause()">⏸️ 暫停</button>
                         <button class="ctrl-btn ctrl-btn-red" onclick="clickStopButton()">⏹️ 重置</button>
@@ -281,12 +301,14 @@
                 <div id="p2-hud" class="player-hud">P2 右長者<br>分數: <span id="p2-score">0</span><br>連擊: <span id="p2-combo">0</span></div>
             </div>
 
+            <!-- 手機版觸控按鍵 (僅在沒有相機的鍵盤模式顯示) -->
             <div id="touch-controls">
                 <button class="touch-btn" style="background-color: var(--red);" id="touch-left">🔴 左手</button>
                 <button class="touch-btn" style="background-color: var(--yellow); color: #000;" id="touch-both">🟡 雙手</button>
                 <button class="touch-btn" style="background-color: var(--blue);" id="touch-right">🔵 右手</button>
             </div>
 
+            <!-- 初始啟動畫面 -->
             <div id="start-modal" class="modal">
                 <img src="image_0.png" alt="公公婆婆的音樂體操" id="game-cover">
                 <h1>👵 公公婆婆的音樂體操 👴</h1>
@@ -299,6 +321,7 @@
                 </div>
             </div>
             
+            <!-- 載入畫面 -->
             <div id="loading-modal" class="modal" style="display: none;">
                 <h1>啟動 智慧辨識系統 中...</h1>
                 <p id="loading-text">正在啟用攝影機（請允許相機權限）...</p>
@@ -306,10 +329,12 @@
                 <button id="fallback-keyboard-btn" class="btn btn-yellow btn-full" onclick="startInit(false)" style="display: none;">直接改用免相機模式</button>
             </div>
 
+            <!-- 主選單 / 歌曲與難度選擇 -->
             <div id="menu-modal" class="modal" style="display: none;">
                 <h1>🏆 請選擇運動曲目</h1>
                 <p id="menu-mode-desc" style="color: var(--primary); font-weight: bold; margin-bottom: 5px;">運動模式：攝影機 AI 體感偵測</p>
                 
+                <!-- 音樂播放模式選擇器 -->
                 <div class="music-mode-selector">
                     <button id="mode-direct" class="mode-btn active" onclick="switchMusicEngine('direct')">📻 經典粵語與國語名曲</button>
                     <button id="mode-synth" class="mode-btn" onclick="switchMusicEngine('synth')">⚡ 內建電子樂合成模式</button>
@@ -323,7 +348,9 @@
 
                 <div style="text-align: left;" id="songs-picker-section">
                     <strong>精選健康伸展操歌曲 (每首均剪輯至 1.5 分鐘)：</strong>
-                    <div id="songs-list"></div>
+                    <div id="songs-list">
+                        <!-- 音樂檔案清單將由腳本自動生成 -->
+                    </div>
                 </div>
                 
                 <div id="keyboard-guide-pnl" style="display: none;">
@@ -339,6 +366,7 @@
                     <button class="btn btn-red" onclick="startGame('hard')">靈活 (敏捷律動)</button>
                 </div>
 
+                <!-- 歷史記錄快捷按鈕 -->
                 <div style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.2); padding-top: 15px;">
                     <button class="btn btn-yellow btn-full" onclick="showRecords()" style="margin: 0; width: 100%;">📊 查看我的歷史運動記錄</button>
                 </div>
@@ -348,10 +376,12 @@
                 </div>
             </div>
 
+            <!-- 歷史記錄畫面 -->
             <div id="records-modal" class="modal" style="display: none; max-height: 85vh; overflow-y: auto;">
                 <h1>📊 樂活運動記錄</h1>
                 <p>這裡記錄了您最近的健康有氧運動成果！</p>
                 <div id="records-container" style="text-align: left; margin: 15px 0; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 15px; max-height: 40vh; overflow-y: auto;">
+                    <!-- 記錄清單將動態生成 -->
                 </div>
                 <div>
                     <button class="btn btn-red" onclick="clearRecords()" style="width: 48%;">清除記錄</button>
@@ -359,6 +389,7 @@
                 </div>
             </div>
 
+            <!-- 結算畫面 -->
             <div id="result-modal" class="modal" style="display: none;">
                 <h1>🎉 運動完成了！</h1>
                 <h2 id="result-text" style="color: var(--yellow);"></h2>
@@ -368,6 +399,7 @@
                 <button class="btn btn-full" onclick="resetToMenu()">返回主選單 / 選擇曲目</button>
             </div>
 
+            <!-- 自定義確認詢問彈窗 -->
             <div id="confirm-modal" class="modal" style="display: none; z-index: 30;">
                 <h1 id="confirm-title">確認動作</h1>
                 <p id="confirm-desc">您確定要執行此操作嗎？</p>
@@ -377,6 +409,7 @@
                 </div>
             </div>
 
+            <!-- 動作圖例 -->
             <div id="action-guide" style="display: none;">
                 <span class="guide-item g-red">🔴 左手舉高高</span>
                 <span class="guide-item g-blue">🔵 右手舉高高</span>
@@ -386,6 +419,7 @@
     </div>
 
 <script>
+    // --- 經典歌曲數據設定陣列 ---
     const songsList = [
         { id: 1, title: '卡帶遠方', bpm: 26.5, offset: 350, duration: 250, filename: '01.mp3' },
         { id: 2, title: '老友同唱', bpm: 36, offset: 400, duration: 215, filename: '02.mp3' },
@@ -402,12 +436,14 @@
     let selectedSongIdx = 0;
     let gameMusicEngine = 'direct'; 
     
+    // --- 網頁電子音樂合成引擎 ---
     let audioCtx;
     let synthInterval;
     let currentBeat = 0;
     const synthTempo = 110;
     const synthBeatDuration = 60 / synthTempo;
 
+    // --- 系統全域變數與宣告 ---
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
@@ -422,6 +458,7 @@
     let isPoseEstimating = false; 
     let audioLoadTimeout = null; 
     let isRestartingCamera = false; 
+    let currentStream = null; // 🚀 核心修復 3：全域保留相機串流，防止被系統 Garbage Collection 回收
     
     const maxGameTime = 90; 
     let gameStartTime = 0;
@@ -434,6 +471,7 @@
     let notes = [];
     let lastSpawnedBeat = -1;
 
+    // 鍵盤狀態監聽變數
     let keyboardActions = {
         P1: { starJump: false, squat: false, kneeLift: false },
         P2: { starJump: false, squat: false, kneeLift: false }
@@ -799,22 +837,35 @@
 
     function playAudioSafely(audioElement) {
         if (!audioElement) return;
-        if (!audioElement.src || audioElement.src === "" || audioElement.src === window.location.href) return;
+        
+        if (!audioElement.src || audioElement.src === "" || audioElement.src === window.location.href) {
+            return;
+        }
         
         try {
             const playPromise = audioElement.play();
+            
             if (playPromise !== undefined) {
                 playPromise.then(() => {
-                    if (audioLoadTimeout) { clearTimeout(audioLoadTimeout); audioLoadTimeout = null; }
+                    if (audioLoadTimeout) {
+                        clearTimeout(audioLoadTimeout);
+                        audioLoadTimeout = null;
+                    }
                 }).catch(error => {
                     if (error.name === "NotAllowedError") {
                         showMsg("請觸摸螢幕以啟用音樂播放", 6000);
+                        
                         const unlock = () => {
                             if (audioElement.src && audioElement.src !== "" && audioElement.src !== window.location.href) {
                                 audioElement.play().then(() => {
                                     showMsg("音樂已成功播放，開始運動！", 2000);
-                                    if (audioLoadTimeout) { clearTimeout(audioLoadTimeout); audioLoadTimeout = null; }
-                                }).catch(e => { triggerMusicFallback(); });
+                                    if (audioLoadTimeout) {
+                                        clearTimeout(audioLoadTimeout);
+                                        audioLoadTimeout = null;
+                                    }
+                                }).catch(e => {
+                                    triggerMusicFallback();
+                                });
                             }
                             window.removeEventListener('click', unlock);
                             window.removeEventListener('touchstart', unlock);
@@ -826,7 +877,9 @@
                     }
                 });
             }
-        } catch (e) { triggerMusicFallback(); }
+        } catch (e) {
+            triggerMusicFallback();
+        }
     }
 
     window.startInit = async function(requestCam) {
@@ -881,7 +934,7 @@
     async function initSystem() {
         try {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                alert("抱歉！系統偵測不到相機。請確認您使用的是「HTTPS」安全連線。");
+                alert("抱歉！系統偵測不到相機。請確認您使用的是「HTTPS」安全連線，或是由支援相機的瀏覽器開啟。");
                 throw new Error("No mediaDevices");
             }
 
@@ -891,25 +944,29 @@
                 { video: true, audio: false }
             ];
 
-            let stream = null;
             let success = false;
             let lastError = null;
             
             for (let constraints of constraintList) {
                 try {
-                    stream = await navigator.mediaDevices.getUserMedia(constraints);
-                    if (stream) { success = true; break; }
-                } catch (e) { lastError = e; }
+                    currentStream = await navigator.mediaDevices.getUserMedia(constraints); // 🚀 核心修復 3：存入全域變數防回收
+                    if (currentStream) {
+                        success = true;
+                        break;
+                    }
+                } catch (e) {
+                    lastError = e;
+                }
             }
 
-            if (!success || !stream) {
+            if (!success || !currentStream) {
                 if (lastError && (lastError.name === 'NotAllowedError' || lastError.name === 'SecurityError')) {
-                    alert("📷 相機權限被拒絕！請至設定中將相機權限設為「允許」，並重新整理網頁。");
+                    alert("📷 相機權限被拒絕或封鎖！\n\n請至瀏覽器的「設定」中，將相機權限設為「允許」，然後重新整理網頁。");
                 }
                 throw new Error("Could not start video source");
             }
 
-            video.srcObject = stream;
+            video.srcObject = currentStream;
             video.muted = true;
             video.setAttribute('playsinline', 'true');
             video.setAttribute('webkit-playsinline', 'true'); 
@@ -921,8 +978,13 @@
                     clearTimeout(fallbackTimer);
                     video.play().then(resolve).catch((e) => { resolve(); });
                 };
-                if (video.readyState >= 2) onVideoPlayable();
-                else { video.onloadeddata = onVideoPlayable; video.onloadedmetadata = onVideoPlayable; }
+
+                if (video.readyState >= 2) {
+                    onVideoPlayable();
+                } else {
+                    video.onloadeddata = onVideoPlayable;
+                    video.onloadedmetadata = onVideoPlayable;
+                }
             });
 
             canvas.width = 640;
@@ -946,12 +1008,21 @@
             
             detectFrame();
         } catch (e) {
-            console.error(e);
-            showMsg("攝影機啟動失敗，將在 3 秒後自動啟用觸控模式！", 3000);
+            console.error("相機權限或載入失敗，自動切換至免相機方案:", e);
+            showMsg("攝影機啟動失敗，將在 3 秒後自動啟用觸控/鍵盤模式！", 3000);
+            
+            document.getElementById('loading-text').innerHTML = 
+                `<span style="color:var(--yellow); font-weight:bold;">已自動為您切換至觸控/鍵盤模式</span><br><br>` +
+                `說明：您的應用環境限制了攝影機的使用權限。<br>` +
+                `別擔心！您可以直接點擊螢幕上的按鈕來遊玩！`;
+            
             document.getElementById('retry-camera-btn').style.display = 'block';
             document.getElementById('fallback-keyboard-btn').style.display = 'block';
+
             setTimeout(() => {
-                if (document.getElementById('loading-modal').style.display !== 'none') window.initKeyboardMode();
+                if (document.getElementById('loading-modal').style.display !== 'none') {
+                    window.initKeyboardMode();
+                }
             }, 3000);
         }
     }
@@ -960,24 +1031,33 @@
         try {
             const constraintList = [
                 { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: false },
+                { video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
                 { video: true, audio: false }
             ];
-            let stream = null;
+            let success = false;
             for (let c of constraintList) {
-                try { stream = await navigator.mediaDevices.getUserMedia(c); if (stream) break; } catch(e){}
+                try { 
+                    currentStream = await navigator.mediaDevices.getUserMedia(c); 
+                    if (currentStream) { success = true; break; }
+                } catch(e){}
             }
-            if (stream) { video.srcObject = stream; video.play().catch(()=>{}); }
+            if (success && currentStream) {
+                video.srcObject = currentStream;
+                video.play().catch(()=>{});
+            }
         } catch (e) {}
     }
 
     function processElderlyPoses(poses) {
         players.forEach(p => p.action = { starJump: false, squat: false, kneeLift: false });
+
         const validPoses = poses.filter(p => p.score > 0.15)
                                 .sort((a, b) => {
                                     const ax = a.keypoints.find(k => k.name === 'nose')?.x || a.keypoints[0].x;
                                     const bx = b.keypoints.find(k => k.name === 'nose')?.x || b.keypoints[0].x;
                                     return bx - ax;
                                 });
+
         const targetPoses = validPoses.slice(0, isTwoPlayer ? 2 : 1);
 
         targetPoses.forEach((pose, index) => {
@@ -994,20 +1074,26 @@
             const leftRaised = leftValid && (lw.y < ls.y);
             const rightRaised = rightValid && (rw.y < rs.y);
 
-            if (leftRaised && rightRaised) p.action.kneeLift = true;  
-            else if (leftRaised) p.action.starJump = true;  
-            else if (rightRaised) p.action.squat = true;     
+            if (leftRaised && rightRaised) {
+                p.action.kneeLift = true;  
+            } else if (leftRaised) {
+                p.action.starJump = true;  
+            } else if (rightRaised) {
+                p.action.squat = true;     
+            }
         });
     }
 
     function drawSkeletons(poses) {
         ctx.fillStyle = '#00ffcc';
+        
         const validPoses = poses.filter(p => p.score > 0.15)
                                 .sort((a, b) => {
                                     const ax = a.keypoints.find(k => k.name === 'nose')?.x || a.keypoints[0].x;
                                     const bx = b.keypoints.find(k => k.name === 'nose')?.x || b.keypoints[0].x;
                                     return bx - ax;
                                 });
+
         const targetPoses = validPoses.slice(0, isTwoPlayer ? 2 : 1);
 
         targetPoses.forEach((pose, idx) => {
@@ -1018,7 +1104,9 @@
 
             kp.forEach(k => {
                 if (k.score > 0.2) {
-                    ctx.beginPath(); ctx.arc(canvas.width - k.x, k.y, 6, 0, 2*Math.PI); ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(canvas.width - k.x, k.y, 6, 0, 2*Math.PI);
+                    ctx.fill();
                 }
             });
 
@@ -1041,99 +1129,164 @@
 
     async function runAsyncPoseDetection() {
         if (!useCamera || !detector || video.readyState < 2 || isPoseEstimating) return;
+        
         isPoseEstimating = true;
-        tf.engine().startScope();
+        
+        // 🚀 核心修復 2：移除 startScope() 和 endScope() 這種在 JavaScript 非同步環境中會導致 WebGL Context Lost 崩潰崩潰卡死的危險操作，改依賴 TF.js 內部記憶體管理
         try {
             const poses = await detector.estimatePoses(video);
             latestPoses = poses; 
             processElderlyPoses(poses); 
-        } catch (e) { console.error(e); } finally { tf.engine().endScope(); isPoseEstimating = false; }
+        } catch (e) {
+            console.error("姿勢偵測異步錯誤:", e);
+        } finally {
+            isPoseEstimating = false;
+        }
     }
 
     function detectFrame() {
         ctx.save();
+        
         if (useCamera) {
-            if (video.paused && video.readyState >= 2) video.play().catch(e => {});
+            if (video.paused && video.readyState >= 2) {
+                video.play().catch(e => {});
+            }
             if (video.srcObject && !video.srcObject.active && !isRestartingCamera) {
                 isRestartingCamera = true;
                 reconnectCamera().finally(() => setTimeout(() => isRestartingCamera = false, 2500));
             }
+
             if (video.readyState >= 2) {
-                ctx.translate(canvas.width, 0); ctx.scale(-1, 1);
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                ctx.scale(-1, 1); ctx.translate(-canvas.width, 0);
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-                runAsyncPoseDetection(); drawSkeletons(latestPoses);
+                ctx.scale(-1, 1); 
+                ctx.translate(-canvas.width, 0);
+
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                runAsyncPoseDetection();
+                drawSkeletons(latestPoses);
             } else {
-                ctx.fillStyle = '#1a252f'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; ctx.font = '28px bold sans-serif'; ctx.textAlign = 'center';
+                ctx.fillStyle = '#1a252f';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.font = '28px bold sans-serif';
+                ctx.textAlign = 'center';
                 ctx.fillText("📷 攝影機啟動中，請稍候...", canvas.width / 2, canvas.height / 2);
             }
         } else {
             drawElderlyFriendlyBackground();
+            
             players[0].action = { ...keyboardActions.P1 };
             players[1].action = { ...keyboardActions.P2 };
+            
             drawKeyboardVisualFeedback();
         }
 
-        if (gameState === 'playing') renderGameLoop();
+        if (gameState === 'playing') {
+            renderGameLoop();
+        }
+        
         ctx.restore();
         animationId = requestAnimationFrame(detectFrame);
     }
 
     function drawElderlyFriendlyBackground() {
         let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        grad.addColorStop(0, '#1a252f'); grad.addColorStop(1, '#2c3e50');
-        ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)'; ctx.lineWidth = 2;
-        ctx.style = 'none'; ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, 120, 0, 2*Math.PI); ctx.stroke();
+        grad.addColorStop(0, '#1a252f');
+        grad.addColorStop(1, '#2c3e50');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(canvas.width/2, canvas.height/2, 120, 0, 2*Math.PI);
+        ctx.stroke();
     }
 
     function drawKeyboardVisualFeedback() {
-        ctx.font = '24px bold sans-serif'; ctx.textAlign = 'center';
+        ctx.font = '24px bold sans-serif';
+        ctx.textAlign = 'center';
+        
         players.forEach((p, idx) => {
             if (!isTwoPlayer && idx === 1) return;
-            let actionText = "等待動作中"; let color = '#a0aec0';
+            let actionText = "等待動作中";
+            let color = '#a0aec0';
+            
             if (p.action.kneeLift) { actionText = "🟡 雙手舉高高"; color = '#ffa502'; }
             else if (p.action.starJump) { actionText = "🔴 左手舉高高"; color = '#ff4757'; }
             else if (p.action.squat) { actionText = "🔵 右手舉高高"; color = '#1e90ff'; }
-            ctx.fillStyle = color; ctx.fillText(actionText, p.x, canvas.height * 0.18);
+            
+            ctx.fillStyle = color;
+            ctx.fillText(actionText, p.x, canvas.height * 0.18);
         });
     }
 
     function renderGameLoop() {
-        const hitZoneY = canvas.height * 0.78; const bgm = document.getElementById('bgm');
-        ctx.beginPath(); ctx.moveTo(0, hitZoneY); ctx.lineTo(canvas.width, hitZoneY);
+        const hitZoneY = canvas.height * 0.78; 
+        const bgm = document.getElementById('bgm');
+        
+        ctx.beginPath();
+        ctx.moveTo(0, hitZoneY); ctx.lineTo(canvas.width, hitZoneY);
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'; ctx.lineWidth = 3; ctx.stroke();
         
         players.forEach((p, idx) => {
             if (!isTwoPlayer && idx === 1) return;
-            ctx.beginPath(); ctx.arc(p.x, hitZoneY, 45, 0, 2*Math.PI);
-            ctx.strokeStyle = p.hitEffect > 0 ? '#fff' : p.color; ctx.lineWidth = p.hitEffect > 0 ? 10 : 4; ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.arc(p.x, hitZoneY, 45, 0, 2*Math.PI);
+            ctx.strokeStyle = p.hitEffect > 0 ? '#fff' : p.color;
+            ctx.lineWidth = p.hitEffect > 0 ? 10 : 4;
+            ctx.stroke();
+            
             if (p.hitEffect > 0) p.hitEffect--;
-            ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
+            
+            ctx.save();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
             ctx.fillText(p.id, p.x, hitZoneY + 65);
+            ctx.restore();
         });
 
-        let elapsedMs = 0; let currentBpm = synthTempo;
+        let elapsedMs = 0;
+        let currentBpm = synthTempo;
+        let currentOffset = 0;
+
         if (gameMusicEngine === 'direct') {
             elapsedMs = (bgm.currentTime * 1000) - songsList[selectedSongIdx].offset;
             currentBpm = songsList[selectedSongIdx].bpm;
-        } else { elapsedMs = (Date.now() - gameStartTime) - 200; }
+            currentOffset = songsList[selectedSongIdx].offset;
+        } else {
+            elapsedMs = (Date.now() - gameStartTime) - 200;
+        }
 
         if (elapsedMs > 0) {
-            const beatMs = 60000 / currentBpm; const currentBeatIndex = Math.floor(elapsedMs / beatMs);
+            const beatMs = 60000 / currentBpm;
+            const currentBeatIndex = Math.floor(elapsedMs / beatMs);
+            
             if (currentBeatIndex > lastSpawnedBeat) {
                 lastSpawnedBeat = currentBeatIndex;
+                
                 let shouldSpawn = false;
                 if (difficulty === 'easy' && currentBeatIndex % 4 === 0) shouldSpawn = true;
                 if (difficulty === 'normal' && currentBeatIndex % 2 === 0) shouldSpawn = true;
                 if (difficulty === 'hard') shouldSpawn = true;
                 
                 if (shouldSpawn) {
-                    const randType = Math.random(); let type = 'red'; let len = 0;
-                    if (randType > 0.8) { type = 'yellow'; len = canvas.height * 0.22; }
-                    else if (randType > 0.4) { type = 'blue'; }
+                    const randType = Math.random();
+                    let type = 'red';
+                    let len = 0;
+                    if (randType > 0.8) { 
+                        type = 'yellow'; 
+                        len = canvas.height * 0.22; 
+                    } else if (randType > 0.4) { 
+                        type = 'blue'; 
+                    }
+                    
                     players.forEach((p, idx) => {
                         if (!isTwoPlayer && idx === 1) return;
                         notes.push({ x: p.x, y: -50, type: type, len: len, hit: false, pIdx: idx, scored: false });
@@ -1149,9 +1302,12 @@
         for (let i = notes.length - 1; i >= 0; i--) {
             let n = notes[i];
             if (!n.hit) {
-                n.y += noteSpeed; const p = players[n.pIdx];
+                n.y += noteSpeed;
+                const p = players[n.pIdx];
+
                 if (n.type === 'yellow') {
-                    ctx.fillStyle = 'rgba(255, 165, 2, 0.85)'; ctx.fillRect(n.x - 30, n.y - n.len, 60, n.len);
+                    ctx.fillStyle = 'rgba(255, 165, 2, 0.85)';
+                    ctx.fillRect(n.x - 30, n.y - n.len, 60, n.len);
                     ctx.beginPath(); ctx.arc(n.x, n.y, 30, 0, 2*Math.PI); ctx.fill();
                 } else {
                     ctx.beginPath(); ctx.arc(n.x, n.y, 30, 0, 2*Math.PI);
@@ -1161,37 +1317,54 @@
 
                 if (n.type === 'yellow') {
                     if (n.y >= hitZoneY && (n.y - n.len) <= hitZoneY) {
-                        if (p.action.kneeLift) { p.score += 10; p.combo++; p.hitEffect = 8; updateHUD(); }
+                        if (p.action.kneeLift) { 
+                            p.score += 10; p.combo++; p.hitEffect = 8; updateHUD();
+                        }
                     }
                     if (n.y - n.len > canvas.height) notes.splice(i, 1);
                 } else {
                     const dist = Math.abs(n.y - hitZoneY);
                     if (dist < 50) {
-                        if ((n.type === 'red' && p.action.starJump) || (n.type === 'blue' && p.action.squat)) {
-                            n.hit = true; p.score += 100 + (p.combo * 5); p.combo++; p.hitEffect = 18; updateHUD();
+                        if ((n.type === 'red' && p.action.starJump) || 
+                            (n.type === 'blue' && p.action.squat)) {
+                            n.hit = true;
+                            p.score += 100 + (p.combo * 5); p.combo++; p.hitEffect = 18;
+                            updateHUD();
                         }
                     }
-                    if (n.y > hitZoneY + 60 && !n.hit && !n.scored) { n.scored = true; p.combo = 0; updateHUD(); }
+                    if (n.y > hitZoneY + 60 && !n.hit && !n.scored) {
+                        n.scored = true; p.combo = 0; updateHUD();
+                    }
                     if (n.y > canvas.height + 60) notes.splice(i, 1);
                 }
-            } else { notes.splice(i, 1); }
+            } else {
+                notes.splice(i, 1);
+            }
         }
 
         let elapsedSeconds = (Date.now() - gameStartTime) / 1000;
         let timeRemaining = maxGameTime - elapsedSeconds;
-        if (timeRemaining <= 0) endGame();
-        else {
-            let m = Math.floor(timeRemaining / 60); let s = Math.floor(timeRemaining % 60);
+        
+        if (timeRemaining <= 0) {
+            endGame();
+        } else {
+            let m = Math.floor(timeRemaining / 60);
+            let s = Math.floor(timeRemaining % 60);
             timerBox.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
         }
     }
 
     function updateHUD() {
-        document.getElementById('p1-score').innerText = players[0].score;
-        document.getElementById('p1-combo').innerText = players[0].combo;
+        const p1ScoreEl = document.getElementById('p1-score');
+        const p1ComboEl = document.getElementById('p1-combo');
+        const p2ScoreEl = document.getElementById('p2-score');
+        const p2ComboEl = document.getElementById('p2-combo');
+
+        if (p1ScoreEl) p1ScoreEl.innerText = players[0].score;
+        if (p1ComboEl) p1ComboEl.innerText = players[0].combo;
         if (isTwoPlayer) {
-            document.getElementById('p2-score').innerText = players[1].score;
-            document.getElementById('p2-combo').innerText = players[1].combo;
+            if (p2ScoreEl) p2ScoreEl.innerText = players[1].score;
+            if (p2ComboEl) p2ComboEl.innerText = players[1].combo;
         }
     }
 
@@ -1199,42 +1372,68 @@
         isTwoPlayer = (playersCount === 2);
         document.getElementById('btn-1p').style.opacity = isTwoPlayer ? '0.6' : '1';
         document.getElementById('btn-2p').style.opacity = isTwoPlayer ? '1' : '0.6';
+        
         if (isTwoPlayer) {
-            players[0].x = canvas.width * 0.25; players[1].x = canvas.width * 0.75;
+            players[0].x = canvas.width * 0.25;
+            players[1].x = canvas.width * 0.75;
             document.getElementById('p2-keyboard-guide').style.display = 'inline';
         } else {
-            players[0].x = canvas.width / 2; document.getElementById('p2-keyboard-guide').style.display = 'none';
+            players[0].x = canvas.width / 2;
+            document.getElementById('p2-keyboard-guide').style.display = 'none';
         }
     };
 
     window.startGame = function(diff) {
         difficulty = diff;
+        
         document.getElementById('menu-modal').style.display = 'none';
         document.getElementById('p1-hud').style.display = 'block';
         if (isTwoPlayer) document.getElementById('p2-hud').style.display = 'block';
         timerBox.style.display = 'block';
         document.getElementById('control-panel').style.display = 'flex';
         document.getElementById('action-guide').style.display = 'block';
-        if (!useCamera) document.getElementById('touch-controls').style.display = 'flex';
+        document.getElementById('btn-play-pause').innerText = "⏸️ 暫停";
+        
+        // 如果是免相機模式，顯示觸控面板
+        if (!useCamera) {
+            document.getElementById('touch-controls').style.display = 'flex';
+        }
         
         players.forEach(p => { p.score = 0; p.combo = 0; p.hitEffect = 0; });
-        notes = []; lastSpawnedBeat = -1; updateHUD();
-        gameState = 'playing'; gameStartTime = Date.now(); 
+        notes = [];
+        lastSpawnedBeat = -1;
+        updateHUD();
+        
+        gameState = 'playing';
+        gameStartTime = Date.now(); 
         
         if (gameMusicEngine === 'direct') {
             const bgm = document.getElementById('bgm');
-            try { bgm.pause(); bgm.src = ""; bgm.load(); } catch(e) {}
-            bgm.src = songsList[selectedSongIdx].url; bgm.currentTime = 0;
+            
+            try {
+                bgm.pause();
+                bgm.src = "";
+                bgm.load();
+            } catch(e) {}
+
+            bgm.src = songsList[selectedSongIdx].url;
+            bgm.currentTime = 0;
             
             if (audioLoadTimeout) clearTimeout(audioLoadTimeout);
             audioLoadTimeout = setTimeout(() => {
                 if (gameState === 'playing' && bgm.paused && gameMusicEngine === 'direct') {
+                    console.warn("音軌載入緩慢，自動切換至內建電子樂...");
                     showMsg("優化音軌載入，自動啟用內建電子樂！", 3000);
-                    window.switchMusicEngine('synth'); startSynthMusic();
+                    window.switchMusicEngine('synth');
+                    synthInterval = null; 
+                    startSynthMusic();
                 }
             }, 1500);
+
             playAudioSafely(bgm);
-        } else { startSynthMusic(); }
+        } else {
+            startSynthMusic();
+        }
     };
 
     function handleKeyDown(e) {
@@ -1242,6 +1441,7 @@
         if (key === 'a') keyboardActions.P1.starJump = true; 
         if (key === 's') keyboardActions.P1.squat = true;    
         if (key === 'd') keyboardActions.P1.kneeLift = true; 
+
         if (key === 'j') keyboardActions.P2.starJump = true; 
         if (key === 'k') keyboardActions.P2.squat = true;    
         if (key === 'l') keyboardActions.P2.kneeLift = true; 
@@ -1252,6 +1452,7 @@
         if (key === 'a') keyboardActions.P1.starJump = false;
         if (key === 's') keyboardActions.P1.squat = false;
         if (key === 'd') keyboardActions.P1.kneeLift = false;
+
         if (key === 'j') keyboardActions.P2.starJump = false;
         if (key === 'k') keyboardActions.P2.squat = false;
         if (key === 'l') keyboardActions.P2.kneeLift = false;
@@ -1262,21 +1463,45 @@
         if (bgm) {
             bgm.addEventListener('error', (e) => {
                 const currentSong = songsList[selectedSongIdx];
-                if (currentSong && bgm.src !== currentSong.fallbackUrl) {
-                    bgm.src = currentSong.fallbackUrl; bgm.load(); playAudioSafely(bgm);
-                } else { triggerMusicFallback(); }
+                try { bgm.pause(); } catch(err){}
+
+                if (currentSong && currentSong.fallbackUrl && bgm.src !== currentSong.fallbackUrl) {
+                    bgm.src = currentSong.fallbackUrl;
+                    bgm.load();
+                    playAudioSafely(bgm);
+                } else {
+                    triggerMusicFallback();
+                }
             });
         }
     });
 
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden && useCamera && video) {
-            if (video.paused && video.readyState >= 2) video.play().catch(e => {});
+            if (video.paused && video.readyState >= 2) {
+                video.play().catch(e => {});
+            }
             if (video.srcObject && !video.srcObject.active && !isRestartingCamera) {
-                isRestartingCamera = true; reconnectCamera().finally(() => setTimeout(() => isRestartingCamera = false, 2500));
+                isRestartingCamera = true;
+                reconnectCamera().finally(() => setTimeout(() => isRestartingCamera = false, 2500));
             }
         }
     });
+
+    // 🚀 全局環境防衛性綁定
+    window.startInit = startInit;
+    window.initKeyboardMode = initKeyboardMode;
+    window.switchMusicEngine = switchMusicEngine;
+    window.selectSong = selectSong;
+    window.selectMode = selectMode;
+    window.startGame = startGame;
+    window.togglePlayPause = togglePlayPause;
+    window.clickStopButton = clickStopButton;
+    window.returnToHome = returnToHome;
+    window.resetToMenu = resetToMenu;
+    window.showRecords = showRecords;
+    window.closeRecords = closeRecords;
+    window.clearRecords = clearRecords;
 </script>
 </body>
 </html>
