@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>公公婆婆的音樂體操</title>
+    <style>
+        :root {
+            --primary: #2ed573;
+            --red: #ff4757;
+            --blue: #1e90ff;
+            --yellow: #ffa502;
+            --bg: #1a252f;
+            --panel: rgba(44, 62, 80, 0.95);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg); color: #ffffff;
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            overflow: hidden; touch-action: none;
+            user-select: none; 
+            -webkit-user-select: none;
+        }
+        #game-wrapper {
+            position: relative; width: 100vw; height: 100vh;
+            display: flex; justify-content: center; align-items: center;
+        }
+        
+        video { 
+            position: absolute; 
+            top: -9999px;
+            left: -9999px;
+            width: 640px; 
+            height: 480px; 
+            pointer-events: none; 
+            z-index: -10;
+        }
+        
+        canvas {
+            width: 100%; height: 100%; object-fit: contain;
+            background-color: #000;
+        }
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column;
+        }
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); z-index: 10;
+            width: 100%;
+        }
+        .player-hud {
+            background: rgba(0, 0, 0, 0.6); padding: 8px 15px;
+            border-radius: 12px; border: 2px solid;
+            font-size: 1.2rem; font-weight: bold; display: none;
+            text-align: center; backdrop-filter: blur(5px);
+        }
+        #p1-hud { border-color: var(--primary); color: var(--primary); }
+        #p2-hud { border-color: var(--yellow); color: var(--yellow); }
+        
+        #timer-box {
+            font-size: 2.2rem; font-weight: 900; color: #fff;
+            background: rgba(0,0,0,0.7); padding: 5px 20px;
+            border-radius: 20px; border: 2px solid #fff;
+            display: none; height: fit-content;
+        }
+
+        #control-panel {
+            display: none;
+            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 15px;
+            border-radius: 30px;
+            gap: 10px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .ctrl-btn {
+            background: #fff;
+            color: #000;
+            border: none;
+            padding: 8px 15px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .ctrl-btn:hover { background: #e0e0e0; transform: scale(1.05); }
+        .ctrl-btn-red { background: var(--red); color: white; }
+        .ctrl-btn-red:hover { background: #ff6b81; }
+
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: var(--panel); padding: 30px; border-radius: 25px;
+            text-align: center; pointer-events: auto;
+            border: 3px solid var(--primary); width: 92%; max-width: 550px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 20;
+            max-height: 90vh; overflow-y: auto;
+        }
+        .modal h1 { color: #fff; margin-top: 0; font-size: 2rem; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .modal p { color: #e2e8f0; line-height: 1.6; font-size: 1.1rem; margin-bottom: 15px;}
+        
+        .btn {
+            background-color: var(--primary); color: #000; border: none;
+            padding: 14px 20px; margin: 6px; font-size: 1.1rem; border-radius: 30px;
+            cursor: pointer; font-weight: bold; transition: all 0.2s;
+            width: calc(50% - 15px); min-width: 140px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-red { background-color: var(--red); color: white; }
+        .btn-yellow { background-color: var(--yellow); }
+        .btn-full { width: 100%; margin-top: 10px; }
+        
+        .music-mode-selector {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .mode-btn {
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 8px 15px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 0.95rem;
+        }
+        .mode-btn.active {
+            background: var(--primary);
+            color: #000;
+            font-weight: bold;
+        }
+
+        .song-btn {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.3);
+            width: 100%;
+            text-align: left;
+            padding: 12px 20px;
+            margin: 5px 0;
+            border-radius: 15px;
+            font-size: 1.05rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .song-btn:hover, .song-btn.active {
+            background: var(--primary);
+            color: #000;
+            border-color: var(--primary);
+            font-weight: bold;
+        }
+        .song-duration {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .diff-container {
+            margin-top: 15px; border-top: 2px solid rgba(255,255,255,0.1); padding-top: 15px;
+            display: none;
+        }
+        
+        #msg-box {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: var(--red); color: white; padding: 12px 24px;
+            border-radius: 25px; font-weight: bold; z-index: 100;
+            display: none; transition: opacity 0.3s; font-size: 1.1rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        #action-guide {
+            position: absolute; bottom: 20px; width: 100%; text-align: center;
+            font-size: 1.4rem; font-weight: bold; text-shadow: 2px 2px 4px #000;
+        }
+        .guide-item { display: inline-block; margin: 0 15px; padding: 5px 10px; border-radius: 10px; background: rgba(0,0,0,0.5); }
+        .g-red { color: var(--red); }
+        .g-blue { color: var(--blue); }
+        .g-yellow { color: var(--yellow); }
+
+        #keyboard-guide-pnl {
+            margin-top: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 15px;
+            font-size: 0.95rem;
+            color: #ddd;
+            line-height: 1.5;
+            border: 1px dashed rgba(255,255,255,0.2);
+        }
+
+        #touch-controls {
+            display: none;
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            justify-content: center;
+            gap: 15px;
+            pointer-events: auto;
+            padding: 0 20px;
+            z-index: 50;
+        }
+        .touch-btn {
+            flex: 1;
+            max-width: 140px;
+            padding: 25px 0;
+            font-size: 1.4rem;
+            font-weight: bold;
+            border: 3px solid rgba(255,255,255,0.8);
+            border-radius: 20px;
+            color: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            touch-action: manipulation;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .touch-btn:active {
+            transform: scale(0.9);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.8);
+        }
+
+        #game-cover {
+            width: 100%;
+            max-width: 400px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        .copyright-text {
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: #a0aec0;
+            text-align: center;
+            line-height: 1.4;
+        }
+
+        @media (max-width: 600px) {
+            .header { padding: 10px; }
+            .player-hud { font-size: 1rem; padding: 8px 10px; }
+            #timer-box { font-size: 1.6rem; }
+            .modal h1 { font-size: 1.6rem; }
+            .btn { width: 100%; margin: 5px 0; }
+            #game-cover { max-width: 280px; }
+            .touch-btn { padding: 20px 0; font-size: 1.2rem; }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.21.0/dist/tf-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@3.21.0/dist/tf-converter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@3.21.0/dist/tf-backend-webgl.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.0.0/dist/pose-detection.min.js"></script>
+</head>
+<body>
+
+    <audio id="bgm" crossorigin="anonymous"></audio>
+
+    <div id="msg-box">提示訊息</div>
+
+    <div id="game-wrapper">
+        <video id="video" autoplay playsinline webkit-playsinline="true" muted></video>
+        <canvas id="canvas" width="640" height="480"></canvas>
+        
+        <div id="ui-layer">
+            <div class="header">
+                <div id="p1-hud" class="player-hud">P1 左長者<br>分數: <span id="p1-score">0</span><br>連擊: <span id="p1-combo">0</span></div>
+                
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                    <div id="timer-box">1:30</div>
+                    <div id="control-panel">
+                        <button class="ctrl-btn" id="btn-play-pause" onclick="togglePlayPause()">⏸️ 暫停</button>
+                        <button class="ctrl-btn ctrl-btn-red" onclick="clickStopButton()">⏹️ 重置</button>
+                        <button class="ctrl-btn" onclick="returnToHome()">🏠 回首頁</button>
+                    </div>
+                </div>
+
+                <div id="p2-hud" class="player-hud">P2 右長者<br>分數: <span id="p2-score">0</span><br>連擊: <span id="p2-combo">0</span></div>
+            </div>
+
+            <div id="touch-controls">
+                <button class="touch-btn" style="background-color: var(--red);" id="touch-left">🔴 左手</button>
+                <button class="touch-btn" style="background-color: var(--yellow); color: #000;" id="touch-both">🟡 雙手</button>
+                <button class="touch-btn" style="background-color: var(--blue);" id="touch-right">🔵 右手</button>
+            </div>
+
+            <div id="start-modal" class="modal">
+                <img src="image_0.png" alt="公公婆婆的音樂體操" id="game-cover">
+                <h1>👵 公公婆婆的音樂體操 👴</h1>
+                <p>專為長者設計的溫和關節伸展、大腦協調有氧運動！</p>
+                <p id="start-msg">建議使用攝影機，系統會溫和偵測「左手舉高」、「右手舉高」與「雙手舉高」。若無相機，也可點擊「鍵盤健康模式」用手指帶動大腦運動喔！</p>
+                <button class="btn btn-yellow" onclick="startInit(true)" style="width: 48%;">啟動 AI 攝影機</button>
+                <button class="btn btn-red" onclick="startInit(false)" style="width: 48%;">使用免相機模式</button>
+                <div class="copyright-text">
+                    Music composed by Candice Pang with the assistance of AI (Suno). All rights reserved.
+                </div>
+            </div>
+            
+            <div id="loading-modal" class="modal" style="display: none;">
+                <h1>啟動 智慧辨識系統 中...</h1>
+                <p id="loading-text">正在啟用攝影機（請允許相機權限）...</p>
+                <button id="retry-camera-btn" class="btn btn-red btn-full" onclick="startInit(true)" style="display: none;">重新嘗試啟用攝影機</button>
+                <button id="fallback-keyboard-btn" class="btn btn-yellow btn-full" onclick="startInit(false)" style="display: none;">直接改用免相機模式</button>
+            </div>
+
+            <div id="menu-modal" class="modal" style="display: none;">
+                <h1>🏆 請選擇運動曲目</h1>
+                <p id="menu-mode-desc" style="color: var(--primary); font-weight: bold; margin-bottom: 5px;">運動模式：攝影機 AI 體感偵測</p>
+                
+                <div class="music-mode-selector">
+                    <button id="mode-direct" class="mode-btn active" onclick="switchMusicEngine('direct')">📻 經典粵語與國語名曲</button>
+                    <button id="mode-synth" class="mode-btn" onclick="switchMusicEngine('synth')">⚡ 內建電子樂合成模式</button>
+                </div>
+
+                <div style="text-align: left; margin-bottom: 15px;">
+                    <strong>選擇遊玩人數：</strong>
+                    <button class="btn" onclick="selectMode(1)" id="btn-1p" style="width: 45%; margin: 5px 0;">單人樂活</button>
+                    <button class="btn btn-red" onclick="selectMode(2)" id="btn-2p" style="width: 45%; margin: 5px 0; opacity: 0.6;">雙人同樂</button>
+                </div>
+
+                <div style="text-align: left;" id="songs-picker-section">
+                    <strong>精選健康伸展操歌曲 (每首均剪輯至 1.5 分鐘)：</strong>
+                    <div id="songs-list"></div>
+                </div>
+                
+                <div id="keyboard-guide-pnl" style="display: none;">
+                    <strong>👆 觸控/鍵盤操作指引：</strong><br>
+                    <span>左邊長者 (P1)：按螢幕按鈕 或 [A] 左手 | [S] 右手 | [D] 雙手</span><br>
+                    <span id="p2-keyboard-guide" style="display:none;">右邊長者 (P2)：按 [J] 左手 | [K] 右手 | [L] 雙手</span>
+                </div>
+
+                <div id="diff-section" class="diff-container" style="display: block;">
+                    <strong>選擇速度，點擊即可開始：</strong><br>
+                    <button class="btn btn-yellow" onclick="startGame('easy')">簡單 (慢速暖身)</button>
+                    <button class="btn" onclick="startGame('normal')">普通 (標準有氧)</button>
+                    <button class="btn btn-red" onclick="startGame('hard')">靈活 (敏捷律動)</button>
+                </div>
+
+                <div style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.2); padding-top: 15px;">
+                    <button class="btn btn-yellow btn-full" onclick="showRecords()" style="margin: 0; width: 100%;">📊 查看我的歷史運動記錄</button>
+                </div>
+                
+                <div class="copyright-text">
+                    Music composed by Candice Pang with the assistance of AI (Suno). All rights reserved.
+                </div>
+            </div>
+
+            <div id="records-modal" class="modal" style="display: none; max-height: 85vh; overflow-y: auto;">
+                <h1>📊 樂活運動記錄</h1>
+                <p>這裡記錄了您最近的健康有氧運動成果！</p>
+                <div id="records-container" style="text-align: left; margin: 15px 0; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 15px; max-height: 40vh; overflow-y: auto;">
+                </div>
+                <div>
+                    <button class="btn btn-red" onclick="clearRecords()" style="width: 48%;">清除記錄</button>
+                    <button class="btn btn-yellow" onclick="closeRecords()" style="width: 48%;">返回選單</button>
+                </div>
+            </div>
+
+            <div id="result-modal" class="modal" style="display: none;">
+                <h1>🎉 運動完成了！</h1>
+                <h2 id="result-text" style="color: var(--yellow);"></h2>
+                <p>做得太棒了！您完成了 1.5 分鐘的有氧大腦開發伸展操！</p>
+                <p>有好好的活動雙臂，今天也十分有朝氣喔！</p>
+                <p>請記得喝杯溫開水、稍微休息一下！</p>
+                <button class="btn btn-full" onclick="resetToMenu()">返回主選單 / 選擇曲目</button>
+            </div>
+
+            <div id="confirm-modal" class="modal" style="display: none; z-index: 30;">
+                <h1 id="confirm-title">確認動作</h1>
+                <p id="confirm-desc">您確定要執行此操作嗎？</p>
+                <div>
+                    <button class="btn btn-yellow" id="confirm-yes-btn" style="width: 48%;">確定</button>
+                    <button class="btn btn-red" id="confirm-no-btn" style="width: 48%;">取消</button>
+                </div>
+            </div>
+
+            <div id="action-guide" style="display: none;">
+                <span class="guide-item g-red">🔴 左手舉高高</span>
+                <span class="guide-item g-blue">🔵 右手舉高高</span>
+                <span class="guide-item g-yellow">🟡 雙手舉高高</span>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const songsList = [
+        { id: 1, title: '卡帶遠方', bpm: 26.5, offset: 350, duration: 250, filename: '01.mp3' },
+        { id: 2, title: '老友同唱', bpm: 36, offset: 400, duration: 215, filename: '02.mp3' },
+        { id: 3, title: 'paper boat night', bpm: 38.5, offset: 1200, duration: 324, filename: '03.mp3' },
+        { id: 4, title: '甜蜜初見', bpm: 57.5, offset: 350, duration: 180, filename: '04.mp3' },
+        { id: 5, title: '獅子山路', bpm: 64, offset: 360, duration: 200, filename: '05.mp3' }
+    ];
+
+    songsList.forEach(song => {
+        song.url = `https://raw.githubusercontent.com/kfccpang/my_music_assets/main/${song.filename}`;
+        song.fallbackUrl = song.url;
+    });
+
+    let selectedSongIdx = 0;
+    let gameMusicEngine = 'direct'; 
+    
+    let audioCtx;
+    let synthInterval;
+    let currentBeat = 0;
+    const synthTempo = 110;
+    const synthBeatDuration = 60 / synthTempo;
+
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const timerBox = document.getElementById('timer-box');
+    
+    let detector;
+    let gameState = 'init'; 
+    let isTwoPlayer = false;
+    let useCamera = true;
+    let animationId;
+    let latestPoses = []; 
+    let isPoseEstimating = false; 
+    let audioLoadTimeout = null; 
+    let isRestartingCamera = false; 
+    
+    const maxGameTime = 90; 
+    let gameStartTime = 0;
+    
+    let difficulty = 'normal';
+    let players = [
+        { id: 'P1', x: 320, score: 0, combo: 0, action: {}, hitEffect: 0, color: '#2ed573' },
+        { id: 'P2', x: 480, score: 0, combo: 0, action: {}, hitEffect: 0, color: '#ffa502' }
+    ];
+    let notes = [];
+    let lastSpawnedBeat = -1;
+
+    let keyboardActions = {
+        P1: { starJump: false, squat: false, kneeLift: false },
+        P2: { starJump: false, squat: false, kneeLift: false }
+    };
+
+    window.selectSong = function(index) {
+        selectedSongIdx = index;
+        initSongMenu();
+    };
+
+    function initSongMenu() {
+        const listEl = document.getElementById('songs-list');
+        listEl.innerHTML = '';
+        songsList.forEach((song, idx) => {
+            const btn = document.createElement('button');
+            btn.className = `song-btn ${idx === selectedSongIdx ? 'active' : ''}`;
+            btn.innerHTML = `<span>🎵 ${song.id}. ${song.title}</span> <span class="song-duration">1.5 分鐘</span>`;
+            btn.onclick = () => {
+                window.selectSong(idx);
+            };
+            listEl.appendChild(btn);
+        });
+    }
+
+    function startSynthMusic() {
+        stopSynthMusic();
+        try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        } catch(e) {
+            console.error("不支援 Web Audio API:", e);
+            return;
+        }
+
+        currentBeat = 0;
+        const scale = [196.00, 220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
+        const bassScale = [98.00, 110.00, 130.81, 146.83];
+        const melodyPattern = [
+            [2, 4, 5], [3, 5, 6], [4, 6, 7], [3, 5, 6],
+            [2, 4, 5], [5, 7, 8], [6, 8, 9], [4, 6, 7]
+        ];
+
+        synthInterval = setInterval(() => {
+            if (gameState !== 'playing') {
+                stopSynthMusic();
+                return;
+            }
+            
+            const time = audioCtx.currentTime;
+            
+            if (currentBeat % 2 === 0) {
+                playDrumKick(40, time, 0.15);
+            } else {
+                playDrumHat(time, 0.05);
+            }
+            
+            if (currentBeat % 2 === 0) {
+                const step = Math.floor(currentBeat / 2) % melodyPattern.length;
+                const notesToPlay = melodyPattern[step];
+                playSoftTone(scale[notesToPlay[0]], time, 0.35, 0.04);
+                playSoftTone(scale[notesToPlay[1]], time + 0.05, 0.25, 0.02);
+            }
+
+            if (currentBeat % 4 === 0) {
+                const bassIdx = (currentBeat / 4) % bassScale.length;
+                playSoftTone(bassScale[bassIdx], time, 0.5, 0.08);
+            }
+            
+            currentBeat++;
+        }, (synthBeatDuration / 2) * 1000);
+    }
+
+    function playSoftTone(freq, startTime, duration, vol) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(vol, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(startTime); osc.stop(startTime + duration);
+    }
+
+    function playDrumKick(freq, startTime, duration) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.setValueAtTime(freq * 2, startTime);
+        osc.frequency.exponentialRampToValueAtTime(10, startTime + duration);
+        gain.gain.setValueAtTime(0.25, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(startTime); osc.stop(startTime + duration);
+    }
+
+    function playDrumHat(startTime, duration) {
+        if (!audioCtx) return;
+        const oscNode = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        oscNode.type = 'triangle';
+        oscNode.frequency.setValueAtTime(8000, startTime);
+        gain.gain.setValueAtTime(0.012, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        oscNode.connect(gain); gain.connect(audioCtx.destination);
+        oscNode.start(startTime); oscNode.stop(startTime + duration);
+    }
+
+    function stopSynthMusic() {
+        if (synthInterval) {
+            clearInterval(synthInterval);
+            synthInterval = null;
+        }
+        if (audioCtx) {
+            try {
+                audioCtx.close();
+            } catch(e){}
+            audioCtx = null;
+        }
+    }
+
+    function endGame() {
+        gameState = 'over';
+        stopSynthMusic();
+        const bgm = document.getElementById('bgm');
+        bgm.pause();
+        
+        saveGameRecord();
+        
+        document.getElementById('p1-hud').style.display = 'none';
+        document.getElementById('p2-hud').style.display = 'none';
+        timerBox.style.display = 'none';
+        document.getElementById('control-panel').style.display = 'none';
+        document.getElementById('action-guide').style.display = 'none';
+        document.getElementById('touch-controls').style.display = 'none';
+        
+        const resultModal = document.getElementById('result-modal');
+        const resText = document.getElementById('result-text');
+        resultModal.style.display = 'block';
+        
+        if (!isTwoPlayer) {
+            resText.innerHTML = `總得分: ${players[0].score}`;
+        } else {
+            resText.innerHTML = `P1 左方: ${players[0].score} 分<br>P2 右方: ${players[1].score} 分<br><br>`;
+            if (players[0].score > players[1].score) resText.innerHTML += "🏆 P1 表現亮眼！";
+            else if (players[1].score > players[0].score) resText.innerHTML += "🏆 P2 表現亮眼！";
+            else resText.innerHTML += "🤝 兩位長者都非常優秀，平手！";
+        }
+    }
+
+    window.switchMusicEngine = function(engine) {
+        gameMusicEngine = engine;
+        document.getElementById('mode-direct').classList.toggle('active', engine === 'direct');
+        document.getElementById('mode-synth').classList.toggle('active', engine === 'synth');
+        
+        const songSection = document.getElementById('songs-picker-section');
+        if (engine === 'direct') {
+            songSection.style.opacity = '1';
+            songSection.style.pointerEvents = 'auto';
+        } else {
+            songSection.style.opacity = '0.5';
+            songSection.style.pointerEvents = 'none';
+        }
+    };
+
+    let activeConfirmCallback = null;
+
+    function showCustomConfirm(title, desc, onConfirm) {
+        document.getElementById('confirm-title').innerText = title;
+        document.getElementById('confirm-desc').innerText = desc;
+        document.getElementById('confirm-modal').style.display = 'block';
+        activeConfirmCallback = onConfirm;
+    }
+
+    document.getElementById('confirm-yes-btn').onclick = function() {
+        document.getElementById('confirm-modal').style.display = 'none';
+        if (activeConfirmCallback) {
+            activeConfirmCallback();
+            activeConfirmCallback = null;
+        }
+    };
+
+    document.getElementById('confirm-no-btn').onclick = function() {
+        document.getElementById('confirm-modal').style.display = 'none';
+        activeConfirmCallback = null;
+    };
+
+    window.togglePlayPause = function() {
+        if (gameState !== 'playing') return;
+        const btn = document.getElementById('btn-play-pause');
+        const bgm = document.getElementById('bgm');
+        
+        if (gameMusicEngine === 'direct') {
+            if (bgm.paused) {
+                playAudioSafely(bgm);
+                btn.innerText = "⏸️ 暫停";
+                showMsg("繼續運動！");
+            } else {
+                bgm.pause();
+                btn.innerText = "▶️ 繼續";
+                showMsg("遊戲已暫停");
+            }
+        } else {
+            if (synthInterval) {
+                stopSynthMusic();
+                btn.innerText = "▶️ 繼續";
+                showMsg("遊戲已暫停");
+            } else {
+                startSynthMusic();
+                btn.innerText = "⏸️ 暫停";
+                showMsg("繼續運動！");
+            }
+        }
+    };
+
+    window.clickStopButton = function() {
+        showCustomConfirm("重置歌曲？", "確定要重新開始這首曲子嗎？分數與時間將會重設。", () => {
+            players.forEach(p => { p.score = 0; p.combo = 0; });
+            notes = [];
+            lastSpawnedBeat = -1; 
+            updateHUD();
+            
+            gameStartTime = Date.now();
+            
+            if (gameMusicEngine === 'direct') {
+                const bgm = document.getElementById('bgm');
+                bgm.currentTime = 0;
+                playAudioSafely(bgm);
+            } else {
+                startSynthMusic();
+            }
+            showMsg("已重新開始！");
+        });
+    };
+
+    window.resetToMenu = function() {
+        document.getElementById('result-modal').style.display = 'none';
+        document.getElementById('menu-modal').style.display = 'block';
+        gameState = 'menu';
+    }
+
+    window.returnToHome = function() {
+        showCustomConfirm("回到選單？", "要結束當前運動並回到主選單嗎？", () => {
+            stopSynthMusic();
+            if (audioLoadTimeout) {
+                clearTimeout(audioLoadTimeout);
+                audioLoadTimeout = null;
+            }
+            const bgm = document.getElementById('bgm');
+            bgm.pause();
+            
+            document.getElementById('p1-hud').style.display = 'none';
+            document.getElementById('p2-hud').style.display = 'none';
+            timerBox.style.display = 'none';
+            document.getElementById('control-panel').style.display = 'none';
+            document.getElementById('action-guide').style.display = 'none';
+            document.getElementById('touch-controls').style.display = 'none';
+            
+            window.resetToMenu();
+            notes = [];
+        });
+    };
+
+    function saveGameRecord() {
+        const record = {
+            date: new Date().toLocaleString('zh-TW'),
+            song: gameMusicEngine === 'direct' ? songsList[selectedSongIdx].title : "活力電子合成樂",
+            difficulty: difficulty === 'easy' ? '簡單' : (difficulty === 'normal' ? '普通' : '靈活'),
+            is2P: isTwoPlayer,
+            p1Score: players[0].score,
+            p2Score: isTwoPlayer ? players[1].score : null
+        };
+
+        let records = [];
+        try {
+            records = JSON.parse(localStorage.getItem('lohas_rhythm_records') || '[]');
+        } catch(e) {
+            records = window.inMemoryRecords || [];
+        }
+
+        records.unshift(record); 
+        if (records.length > 20) records.pop(); 
+
+        try {
+            localStorage.setItem('lohas_rhythm_records', JSON.stringify(records));
+        } catch(e) {}
+        window.inMemoryRecords = records;
+    }
+
+    window.showRecords = function() {
+        document.getElementById('menu-modal').style.display = 'none';
+        document.getElementById('records-modal').style.display = 'block';
+        renderRecordsList();
+    };
+
+    window.closeRecords = function() {
+        document.getElementById('records-modal').style.display = 'none';
+        document.getElementById('menu-modal').style.display = 'block';
+    };
+
+    function renderRecordsList() {
+        const container = document.getElementById('records-container');
+        let records = [];
+        try {
+            records = JSON.parse(localStorage.getItem('lohas_rhythm_records') || '[]');
+        } catch(e) {
+            records = window.inMemoryRecords || [];
+        }
+
+        if (records.length === 0) {
+            container.innerHTML = `<div style="text-align:center; padding:20px; color:#aaa;">尚無運動記錄。<br>快去開始您的第一場活力操吧！</div>`;
+            return;
+        }
+
+        let html = '';
+        records.forEach(r => {
+            const scoreText = r.is2P 
+                ? `P1 左得分: <span style="color:var(--primary); font-weight:bold;">${r.p1Score}</span> | P2 右得分: <span style="color:var(--yellow); font-weight:bold;">${r.p2Score}</span>` 
+                : `運動得分: <span style="color:var(--primary); font-weight:bold;">${r.p1Score}</span>`;
+            html += `
+                <div style="border-bottom:1px dashed rgba(255,255,255,0.15); padding: 12px 5px; font-size: 1rem; line-height:1.4;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span style="font-weight:bold; color:#fff;">🎵 ${r.song} (${r.difficulty})</span>
+                        <span style="color:#aaa; font-size:0.85rem;">🕒 ${r.date}</span>
+                    </div>
+                    <div>${scoreText}</div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    window.clearRecords = function() {
+        showCustomConfirm("清除記錄？", "您確定要清除所有的運動歷史數據嗎？此操作將無法還原。", () => {
+            try {
+                localStorage.removeItem('lohas_rhythm_records');
+            } catch(e){}
+            window.inMemoryRecords = [];
+            renderRecordsList();
+            showMsg("歷史運動記錄已清除完成！");
+        });
+    };
+
+    function showMsg(text, duration = 3000) {
+        const msgBox = document.getElementById('msg-box');
+        if (msgBox) {
+            msgBox.innerText = text;
+            msgBox.style.display = 'block';
+            msgBox.style.opacity = '1';
+            setTimeout(() => {
+                msgBox.style.opacity = '0';
+                setTimeout(() => msgBox.style.display = 'none', 300);
+            }, duration);
+        }
+    }
+
+    function triggerMusicFallback() {
+        if (gameState === 'playing' && gameMusicEngine === 'direct') {
+            showMsg("音軌載入失敗，已自動啟用內建活力電子樂！", 3000);
+            window.switchMusicEngine('synth');
+            startSynthMusic();
+        }
+    }
+
+    function playAudioSafely(audioElement) {
+        if (!audioElement) return;
+        if (!audioElement.src || audioElement.src === "" || audioElement.src === window.location.href) return;
+        
+        try {
+            const playPromise = audioElement.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    if (audioLoadTimeout) { clearTimeout(audioLoadTimeout); audioLoadTimeout = null; }
+                }).catch(error => {
+                    if (error.name === "NotAllowedError") {
+                        showMsg("請觸摸螢幕以啟用音樂播放", 6000);
+                        const unlock = () => {
+                            if (audioElement.src && audioElement.src !== "" && audioElement.src !== window.location.href) {
+                                audioElement.play().then(() => {
+                                    showMsg("音樂已成功播放，開始運動！", 2000);
+                                    if (audioLoadTimeout) { clearTimeout(audioLoadTimeout); audioLoadTimeout = null; }
+                                }).catch(e => { triggerMusicFallback(); });
+                            }
+                            window.removeEventListener('click', unlock);
+                            window.removeEventListener('touchstart', unlock);
+                        };
+                        window.addEventListener('click', unlock);
+                        window.addEventListener('touchstart', unlock);
+                    } else {
+                        triggerMusicFallback();
+                    }
+                });
+            }
+        } catch (e) { triggerMusicFallback(); }
+    }
+
+    window.startInit = async function(requestCam) {
+        document.getElementById('start-modal').style.display = 'none';
+        document.getElementById('loading-modal').style.display = 'block';
+        document.getElementById('retry-camera-btn').style.display = 'none';
+        document.getElementById('fallback-keyboard-btn').style.display = 'none';
+        
+        initSongMenu(); 
+        
+        useCamera = requestCam;
+        if (useCamera) {
+            document.getElementById('loading-text').innerText = "正在啟用攝影機（請允許相機權限）...";
+            await initSystem();
+        } else {
+            window.initKeyboardMode();
+        }
+    };
+
+    window.initKeyboardMode = function() {
+        useCamera = false;
+        document.getElementById('loading-modal').style.display = 'none';
+        document.getElementById('menu-modal').style.display = 'block';
+        document.getElementById('menu-mode-desc').innerText = "運動模式：⚡ 觸控/鍵盤 (免相機)";
+        document.getElementById('keyboard-guide-pnl').style.display = 'block';
+        
+        canvas.width = 640;
+        canvas.height = 480;
+        players[0].x = canvas.width / 2;
+        
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('keyup', handleKeyUp);
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        
+        const bindTouchBtn = (btnId, actionKey) => {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            const press = (e) => { e.preventDefault(); keyboardActions.P1[actionKey] = true; };
+            const release = (e) => { e.preventDefault(); keyboardActions.P1[actionKey] = false; };
+            btn.onmousedown = btn.ontouchstart = press;
+            btn.onmouseup = btn.onmouseleave = btn.ontouchend = btn.ontouchcancel = release;
+        };
+        
+        bindTouchBtn('touch-left', 'starJump'); 
+        bindTouchBtn('touch-right', 'squat');   
+        bindTouchBtn('touch-both', 'kneeLift'); 
+        
+        detectFrame();
+    };
+
+    async function initSystem() {
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert("抱歉！系統偵測不到相機。請確認您使用的是「HTTPS」安全連線。");
+                throw new Error("No mediaDevices");
+            }
+
+            const constraintList = [
+                { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: false },
+                { video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
+                { video: true, audio: false }
+            ];
+
+            let stream = null;
+            let success = false;
+            let lastError = null;
+            
+            for (let constraints of constraintList) {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    if (stream) { success = true; break; }
+                } catch (e) { lastError = e; }
+            }
+
+            if (!success || !stream) {
+                if (lastError && (lastError.name === 'NotAllowedError' || lastError.name === 'SecurityError')) {
+                    alert("📷 相機權限被拒絕！請至設定中將相機權限設為「允許」，並重新整理網頁。");
+                }
+                throw new Error("Could not start video source");
+            }
+
+            video.srcObject = stream;
+            video.muted = true;
+            video.setAttribute('playsinline', 'true');
+            video.setAttribute('webkit-playsinline', 'true'); 
+            video.setAttribute('autoplay', 'true');
+            
+            await new Promise((resolve) => {
+                const fallbackTimer = setTimeout(() => { resolve(); }, 5000); 
+                const onVideoPlayable = () => {
+                    clearTimeout(fallbackTimer);
+                    video.play().then(resolve).catch((e) => { resolve(); });
+                };
+                if (video.readyState >= 2) onVideoPlayable();
+                else { video.onloadeddata = onVideoPlayable; video.onloadedmetadata = onVideoPlayable; }
+            });
+
+            canvas.width = 640;
+            canvas.height = 480;
+            players[0].x = canvas.width / 2;
+
+            document.getElementById('loading-text').innerText = "相機連接成功！正在載入 AI 智慧追蹤模型，請稍候...";
+            
+            try { await tf.setBackend('webgl'); } catch(e) { }
+            await tf.ready();
+            
+            if (!detector) {
+                const model = poseDetection.SupportedModels.MoveNet;
+                const detectorConfig = { modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING };
+                detector = await poseDetection.createDetector(model, detectorConfig);
+            }
+            
+            document.getElementById('loading-modal').style.display = 'none';
+            document.getElementById('menu-modal').style.display = 'block';
+            document.getElementById('keyboard-guide-pnl').style.display = 'none'; 
+            
+            detectFrame();
+        } catch (e) {
+            console.error(e);
+            showMsg("攝影機啟動失敗，將在 3 秒後自動啟用觸控模式！", 3000);
+            document.getElementById('retry-camera-btn').style.display = 'block';
+            document.getElementById('fallback-keyboard-btn').style.display = 'block';
+            setTimeout(() => {
+                if (document.getElementById('loading-modal').style.display !== 'none') window.initKeyboardMode();
+            }, 3000);
+        }
+    }
+
+    async function reconnectCamera() {
+        try {
+            const constraintList = [
+                { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: false },
+                { video: true, audio: false }
+            ];
+            let stream = null;
+            for (let c of constraintList) {
+                try { stream = await navigator.mediaDevices.getUserMedia(c); if (stream) break; } catch(e){}
+            }
+            if (stream) { video.srcObject = stream; video.play().catch(()=>{}); }
+        } catch (e) {}
+    }
+
+    function processElderlyPoses(poses) {
+        players.forEach(p => p.action = { starJump: false, squat: false, kneeLift: false });
+        const validPoses = poses.filter(p => p.score > 0.15)
+                                .sort((a, b) => {
+                                    const ax = a.keypoints.find(k => k.name === 'nose')?.x || a.keypoints[0].x;
+                                    const bx = b.keypoints.find(k => k.name === 'nose')?.x || b.keypoints[0].x;
+                                    return bx - ax;
+                                });
+        const targetPoses = validPoses.slice(0, isTwoPlayer ? 2 : 1);
+
+        targetPoses.forEach((pose, index) => {
+            const p = players[index];
+            const kp = pose.keypoints;
+            const getK = (name) => kp.find(k => k.name === name);
+            
+            const ls = getK('left_shoulder'), rs = getK('right_shoulder');
+            const lw = getK('left_wrist'), rw = getK('right_wrist');
+
+            const leftValid = ls && lw && ls.score > 0.2 && lw.score > 0.2;
+            const rightValid = rs && rw && rs.score > 0.2 && rw.score > 0.2;
+
+            const leftRaised = leftValid && (lw.y < ls.y);
+            const rightRaised = rightValid && (rw.y < rs.y);
+
+            if (leftRaised && rightRaised) p.action.kneeLift = true;  
+            else if (leftRaised) p.action.starJump = true;  
+            else if (rightRaised) p.action.squat = true;     
+        });
+    }
+
+    function drawSkeletons(poses) {
+        ctx.fillStyle = '#00ffcc';
+        const validPoses = poses.filter(p => p.score > 0.15)
+                                .sort((a, b) => {
+                                    const ax = a.keypoints.find(k => k.name === 'nose')?.x || a.keypoints[0].x;
+                                    const bx = b.keypoints.find(k => k.name === 'nose')?.x || b.keypoints[0].x;
+                                    return bx - ax;
+                                });
+        const targetPoses = validPoses.slice(0, isTwoPlayer ? 2 : 1);
+
+        targetPoses.forEach((pose, idx) => {
+            const p = players[idx];
+            const kp = pose.keypoints;
+            const lw = kp.find(k => k.name === 'left_wrist');
+            const rw = kp.find(k => k.name === 'right_wrist');
+
+            kp.forEach(k => {
+                if (k.score > 0.2) {
+                    ctx.beginPath(); ctx.arc(canvas.width - k.x, k.y, 6, 0, 2*Math.PI); ctx.fill();
+                }
+            });
+
+            if (p) {
+                if (p.action.kneeLift && lw && rw) {
+                    [lw, rw].forEach(w => {
+                        ctx.beginPath(); ctx.arc(canvas.width - w.x, w.y, 25, 0, 2*Math.PI);
+                        ctx.fillStyle = 'rgba(255, 165, 2, 0.6)'; ctx.fill();
+                    });
+                } else if (p.action.starJump && lw) {
+                    ctx.beginPath(); ctx.arc(canvas.width - lw.x, lw.y, 25, 0, 2*Math.PI);
+                    ctx.fillStyle = 'rgba(255, 71, 87, 0.6)'; ctx.fill();
+                } else if (p.action.squat && rw) {
+                    ctx.beginPath(); ctx.arc(canvas.width - rw.x, rw.y, 25, 0, 2*Math.PI);
+                    ctx.fillStyle = 'rgba(30, 144, 255, 0.6)'; ctx.fill();
+                }
+            }
+        });
+    }
+
+    async function runAsyncPoseDetection() {
+        if (!useCamera || !detector || video.readyState < 2 || isPoseEstimating) return;
+        isPoseEstimating = true;
+        tf.engine().startScope();
+        try {
+            const poses = await detector.estimatePoses(video);
+            latestPoses = poses; 
+            processElderlyPoses(poses); 
+        } catch (e) { console.error(e); } finally { tf.engine().endScope(); isPoseEstimating = false; }
+    }
+
+    function detectFrame() {
+        ctx.save();
+        if (useCamera) {
+            if (video.paused && video.readyState >= 2) video.play().catch(e => {});
+            if (video.srcObject && !video.srcObject.active && !isRestartingCamera) {
+                isRestartingCamera = true;
+                reconnectCamera().finally(() => setTimeout(() => isRestartingCamera = false, 2500));
+            }
+            if (video.readyState >= 2) {
+                ctx.translate(canvas.width, 0); ctx.scale(-1, 1);
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                ctx.scale(-1, 1); ctx.translate(-canvas.width, 0);
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                runAsyncPoseDetection(); drawSkeletons(latestPoses);
+            } else {
+                ctx.fillStyle = '#1a252f'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; ctx.font = '28px bold sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText("📷 攝影機啟動中，請稍候...", canvas.width / 2, canvas.height / 2);
+            }
+        } else {
+            drawElderlyFriendlyBackground();
+            players[0].action = { ...keyboardActions.P1 };
+            players[1].action = { ...keyboardActions.P2 };
+            drawKeyboardVisualFeedback();
+        }
+
+        if (gameState === 'playing') renderGameLoop();
+        ctx.restore();
+        animationId = requestAnimationFrame(detectFrame);
+    }
+
+    function drawElderlyFriendlyBackground() {
+        let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grad.addColorStop(0, '#1a252f'); grad.addColorStop(1, '#2c3e50');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)'; ctx.lineWidth = 2;
+        ctx.style = 'none'; ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, 120, 0, 2*Math.PI); ctx.stroke();
+    }
+
+    function drawKeyboardVisualFeedback() {
+        ctx.font = '24px bold sans-serif'; ctx.textAlign = 'center';
+        players.forEach((p, idx) => {
+            if (!isTwoPlayer && idx === 1) return;
+            let actionText = "等待動作中"; let color = '#a0aec0';
+            if (p.action.kneeLift) { actionText = "🟡 雙手舉高高"; color = '#ffa502'; }
+            else if (p.action.starJump) { actionText = "🔴 左手舉高高"; color = '#ff4757'; }
+            else if (p.action.squat) { actionText = "🔵 右手舉高高"; color = '#1e90ff'; }
+            ctx.fillStyle = color; ctx.fillText(actionText, p.x, canvas.height * 0.18);
+        });
+    }
+
+    function renderGameLoop() {
+        const hitZoneY = canvas.height * 0.78; const bgm = document.getElementById('bgm');
+        ctx.beginPath(); ctx.moveTo(0, hitZoneY); ctx.lineTo(canvas.width, hitZoneY);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'; ctx.lineWidth = 3; ctx.stroke();
+        
+        players.forEach((p, idx) => {
+            if (!isTwoPlayer && idx === 1) return;
+            ctx.beginPath(); ctx.arc(p.x, hitZoneY, 45, 0, 2*Math.PI);
+            ctx.strokeStyle = p.hitEffect > 0 ? '#fff' : p.color; ctx.lineWidth = p.hitEffect > 0 ? 10 : 4; ctx.stroke();
+            if (p.hitEffect > 0) p.hitEffect--;
+            ctx.fillStyle = '#ffffff'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText(p.id, p.x, hitZoneY + 65);
+        });
+
+        let elapsedMs = 0; let currentBpm = synthTempo;
+        if (gameMusicEngine === 'direct') {
+            elapsedMs = (bgm.currentTime * 1000) - songsList[selectedSongIdx].offset;
+            currentBpm = songsList[selectedSongIdx].bpm;
+        } else { elapsedMs = (Date.now() - gameStartTime) - 200; }
+
+        if (elapsedMs > 0) {
+            const beatMs = 60000 / currentBpm; const currentBeatIndex = Math.floor(elapsedMs / beatMs);
+            if (currentBeatIndex > lastSpawnedBeat) {
+                lastSpawnedBeat = currentBeatIndex;
+                let shouldSpawn = false;
+                if (difficulty === 'easy' && currentBeatIndex % 4 === 0) shouldSpawn = true;
+                if (difficulty === 'normal' && currentBeatIndex % 2 === 0) shouldSpawn = true;
+                if (difficulty === 'hard') shouldSpawn = true;
+                
+                if (shouldSpawn) {
+                    const randType = Math.random(); let type = 'red'; let len = 0;
+                    if (randType > 0.8) { type = 'yellow'; len = canvas.height * 0.22; }
+                    else if (randType > 0.4) { type = 'blue'; }
+                    players.forEach((p, idx) => {
+                        if (!isTwoPlayer && idx === 1) return;
+                        notes.push({ x: p.x, y: -50, type: type, len: len, hit: false, pIdx: idx, scored: false });
+                    });
+                }
+            }
+        }
+
+        let noteSpeed = 3.2;
+        if (difficulty === 'easy') noteSpeed = 2.4;
+        if (difficulty === 'hard') noteSpeed = 4.8;
+
+        for (let i = notes.length - 1; i >= 0; i--) {
+            let n = notes[i];
+            if (!n.hit) {
+                n.y += noteSpeed; const p = players[n.pIdx];
+                if (n.type === 'yellow') {
+                    ctx.fillStyle = 'rgba(255, 165, 2, 0.85)'; ctx.fillRect(n.x - 30, n.y - n.len, 60, n.len);
+                    ctx.beginPath(); ctx.arc(n.x, n.y, 30, 0, 2*Math.PI); ctx.fill();
+                } else {
+                    ctx.beginPath(); ctx.arc(n.x, n.y, 30, 0, 2*Math.PI);
+                    ctx.fillStyle = n.type === 'red' ? '#ff4757' : '#1e90ff';
+                    ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+                }
+
+                if (n.type === 'yellow') {
+                    if (n.y >= hitZoneY && (n.y - n.len) <= hitZoneY) {
+                        if (p.action.kneeLift) { p.score += 10; p.combo++; p.hitEffect = 8; updateHUD(); }
+                    }
+                    if (n.y - n.len > canvas.height) notes.splice(i, 1);
+                } else {
+                    const dist = Math.abs(n.y - hitZoneY);
+                    if (dist < 50) {
+                        if ((n.type === 'red' && p.action.starJump) || (n.type === 'blue' && p.action.squat)) {
+                            n.hit = true; p.score += 100 + (p.combo * 5); p.combo++; p.hitEffect = 18; updateHUD();
+                        }
+                    }
+                    if (n.y > hitZoneY + 60 && !n.hit && !n.scored) { n.scored = true; p.combo = 0; updateHUD(); }
+                    if (n.y > canvas.height + 60) notes.splice(i, 1);
+                }
+            } else { notes.splice(i, 1); }
+        }
+
+        let elapsedSeconds = (Date.now() - gameStartTime) / 1000;
+        let timeRemaining = maxGameTime - elapsedSeconds;
+        if (timeRemaining <= 0) endGame();
+        else {
+            let m = Math.floor(timeRemaining / 60); let s = Math.floor(timeRemaining % 60);
+            timerBox.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+    }
+
+    function updateHUD() {
+        document.getElementById('p1-score').innerText = players[0].score;
+        document.getElementById('p1-combo').innerText = players[0].combo;
+        if (isTwoPlayer) {
+            document.getElementById('p2-score').innerText = players[1].score;
+            document.getElementById('p2-combo').innerText = players[1].combo;
+        }
+    }
+
+    window.selectMode = function(playersCount) {
+        isTwoPlayer = (playersCount === 2);
+        document.getElementById('btn-1p').style.opacity = isTwoPlayer ? '0.6' : '1';
+        document.getElementById('btn-2p').style.opacity = isTwoPlayer ? '1' : '0.6';
+        if (isTwoPlayer) {
+            players[0].x = canvas.width * 0.25; players[1].x = canvas.width * 0.75;
+            document.getElementById('p2-keyboard-guide').style.display = 'inline';
+        } else {
+            players[0].x = canvas.width / 2; document.getElementById('p2-keyboard-guide').style.display = 'none';
+        }
+    };
+
+    window.startGame = function(diff) {
+        difficulty = diff;
+        document.getElementById('menu-modal').style.display = 'none';
+        document.getElementById('p1-hud').style.display = 'block';
+        if (isTwoPlayer) document.getElementById('p2-hud').style.display = 'block';
+        timerBox.style.display = 'block';
+        document.getElementById('control-panel').style.display = 'flex';
+        document.getElementById('action-guide').style.display = 'block';
+        if (!useCamera) document.getElementById('touch-controls').style.display = 'flex';
+        
+        players.forEach(p => { p.score = 0; p.combo = 0; p.hitEffect = 0; });
+        notes = []; lastSpawnedBeat = -1; updateHUD();
+        gameState = 'playing'; gameStartTime = Date.now(); 
+        
+        if (gameMusicEngine === 'direct') {
+            const bgm = document.getElementById('bgm');
+            try { bgm.pause(); bgm.src = ""; bgm.load(); } catch(e) {}
+            bgm.src = songsList[selectedSongIdx].url; bgm.currentTime = 0;
+            
+            if (audioLoadTimeout) clearTimeout(audioLoadTimeout);
+            audioLoadTimeout = setTimeout(() => {
+                if (gameState === 'playing' && bgm.paused && gameMusicEngine === 'direct') {
+                    showMsg("優化音軌載入，自動啟用內建電子樂！", 3000);
+                    window.switchMusicEngine('synth'); startSynthMusic();
+                }
+            }, 1500);
+            playAudioSafely(bgm);
+        } else { startSynthMusic(); }
+    };
+
+    function handleKeyDown(e) {
+        const key = e.key.toLowerCase();
+        if (key === 'a') keyboardActions.P1.starJump = true; 
+        if (key === 's') keyboardActions.P1.squat = true;    
+        if (key === 'd') keyboardActions.P1.kneeLift = true; 
+        if (key === 'j') keyboardActions.P2.starJump = true; 
+        if (key === 'k') keyboardActions.P2.squat = true;    
+        if (key === 'l') keyboardActions.P2.kneeLift = true; 
+    }
+
+    function handleKeyUp(e) {
+        const key = e.key.toLowerCase();
+        if (key === 'a') keyboardActions.P1.starJump = false;
+        if (key === 's') keyboardActions.P1.squat = false;
+        if (key === 'd') keyboardActions.P1.kneeLift = false;
+        if (key === 'j') keyboardActions.P2.starJump = false;
+        if (key === 'k') keyboardActions.P2.squat = false;
+        if (key === 'l') keyboardActions.P2.kneeLift = false;
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        const bgm = document.getElementById('bgm');
+        if (bgm) {
+            bgm.addEventListener('error', (e) => {
+                const currentSong = songsList[selectedSongIdx];
+                if (currentSong && bgm.src !== currentSong.fallbackUrl) {
+                    bgm.src = currentSong.fallbackUrl; bgm.load(); playAudioSafely(bgm);
+                } else { triggerMusicFallback(); }
+            });
+        }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && useCamera && video) {
+            if (video.paused && video.readyState >= 2) video.play().catch(e => {});
+            if (video.srcObject && !video.srcObject.active && !isRestartingCamera) {
+                isRestartingCamera = true; reconnectCamera().finally(() => setTimeout(() => isRestartingCamera = false, 2500));
+            }
+        }
+    });
+</script>
+</body>
+</html>
