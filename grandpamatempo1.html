@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>樂活節奏大師：長者活力有氧</title>
+    <style>
+        :root {
+            --primary: #2ed573;
+            --red: #ff4757;
+            --blue: #1e90ff;
+            --yellow: #ffa502;
+            --bg: #1a252f;
+            --panel: rgba(44, 62, 80, 0.95);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg); color: #ffffff;
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            overflow: hidden; touch-action: none;
+        }
+        #game-wrapper {
+            position: relative; width: 100vw; height: 100vh;
+            display: flex; justify-content: center; align-items: center;
+        }
+        video { display: none; }
+        canvas {
+            width: 100%; height: 100%; object-fit: contain;
+            background-color: #000;
+        }
+        /* YouTube 容器 */
+        #yt-player-container {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 120px;
+            height: 90px;
+            z-index: 5;
+            border: 2px solid #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+            pointer-events: auto;
+            display: none; /* 預設隱藏，若切換到 YT 模式才顯示 */
+        }
+        /* UI 覆蓋層 */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column;
+        }
+        /* 頂部資訊與控制列 */
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); z-index: 10;
+            width: 100%;
+        }
+        .player-hud {
+            background: rgba(0, 0, 0, 0.6); padding: 8px 15px;
+            border-radius: 12px; border: 2px solid;
+            font-size: 1.2rem; font-weight: bold; display: none;
+            text-align: center; backdrop-filter: blur(5px);
+        }
+        #p1-hud { border-color: var(--primary); color: var(--primary); }
+        #p2-hud { border-color: var(--yellow); color: var(--yellow); }
+        
+        #timer-box {
+            font-size: 2.2rem; font-weight: 900; color: #fff;
+            background: rgba(0,0,0,0.7); padding: 5px 20px;
+            border-radius: 20px; border: 2px solid #fff;
+            display: none; height: fit-content;
+        }
+
+        /* 遊戲內控制面板 */
+        #control-panel {
+            display: none;
+            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 15px;
+            border-radius: 30px;
+            gap: 10px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .ctrl-btn {
+            background: #fff;
+            color: #000;
+            border: none;
+            padding: 8px 15px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .ctrl-btn:hover { background: #e0e0e0; transform: scale(1.05); }
+        .ctrl-btn-red { background: var(--red); color: white; }
+        .ctrl-btn-red:hover { background: #ff6b81; }
+
+        /* 彈出視窗 */
+        .modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: var(--panel); padding: 30px; border-radius: 25px;
+            text-align: center; pointer-events: auto;
+            border: 3px solid var(--primary); width: 92%; max-width: 550px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 20;
+            max-height: 90vh; overflow-y: auto;
+        }
+        .modal h1 { color: #fff; margin-top: 0; font-size: 2rem; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .modal p { color: #e2e8f0; line-height: 1.6; font-size: 1.1rem; margin-bottom: 15px;}
+        
+        .btn {
+            background-color: var(--primary); color: #000; border: none;
+            padding: 14px 20px; margin: 6px; font-size: 1.1rem; border-radius: 30px;
+            cursor: pointer; font-weight: bold; transition: all 0.2s;
+            width: calc(50% - 15px); min-width: 140px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-red { background-color: var(--red); color: white; }
+        .btn-yellow { background-color: var(--yellow); }
+        .btn-full { width: 100%; margin-top: 10px; }
+        
+        /* 選擇音樂模式按鈕 */
+        .music-mode-selector {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .mode-btn {
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 8px 15px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 0.95rem;
+        }
+        .mode-btn.active {
+            background: var(--primary);
+            color: #000;
+            font-weight: bold;
+        }
+
+        /* 歌曲選擇按鈕 */
+        .song-btn {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.3);
+            width: 100%;
+            text-align: left;
+            padding: 12px 20px;
+            margin: 5px 0;
+            border-radius: 15px;
+            font-size: 1.05rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .song-btn:hover, .song-btn.active {
+            background: var(--primary);
+            color: #000;
+            border-color: var(--primary);
+            font-weight: bold;
+        }
+        .song-duration {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .diff-container {
+            margin-top: 15px; border-top: 2px solid rgba(255,255,255,0.1); padding-top: 15px;
+            display: none;
+        }
+        
+        /* 訊息提示框 */
+        #msg-box {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: var(--red); color: white; padding: 12px 24px;
+            border-radius: 25px; font-weight: bold; z-index: 100;
+            display: none; transition: opacity 0.3s; font-size: 1.1rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        /* 底部動作提示 */
+        #action-guide {
+            position: absolute; bottom: 20px; width: 100%; text-align: center;
+            font-size: 1.4rem; font-weight: bold; text-shadow: 2px 2px 4px #000;
+        }
+        .guide-item { display: inline-block; margin: 0 15px; padding: 5px 10px; border-radius: 10px; background: rgba(0,0,0,0.5); }
+        .g-red { color: var(--red); }
+        .g-blue { color: var(--blue); }
+        .g-yellow { color: var(--yellow); }
+
+        #keyboard-guide-pnl {
+            margin-top: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 15px;
+            font-size: 0.95rem;
+            color: #ddd;
+            line-height: 1.5;
+            border: 1px dashed rgba(255,255,255,0.2);
+        }
+
+        @media (max-width: 600px) {
+            .header { padding: 10px; }
+            .player-hud { font-size: 1rem; padding: 8px 10px; }
+            #timer-box { font-size: 1.6rem; }
+            .modal h1 { font-size: 1.6rem; }
+            .btn { width: 100%; margin: 5px 0; }
+        }
+    </style>
+    <!-- 引入 TensorFlow.js 與 Pose Detection 相關套件 -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.21.0/dist/tf-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@3.21.0/dist/tf-converter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@3.21.0/dist/tf-backend-webgl.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.0.0/dist/pose-detection.min.js"></script>
+    <!-- 引入 YouTube Iframe Player API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+</head>
+<body>
+
+    <div id="msg-box">提示訊息</div>
+
+    <div id="game-wrapper">
+        <!-- YouTube 播放器容器 -->
+        <div id="yt-player-container">
+            <div id="yt-player"></div>
+        </div>
+
+        <video id="video" width="640" height="480" autoplay playsinline></video>
+        <canvas id="canvas" width="640" height="480"></canvas>
+        
+        <div id="ui-layer">
+            <div class="header">
+                <div id="p1-hud" class="player-hud">P1 左長者<br>分數: <span id="p1-score">0</span><br>連擊: <span id="p1-combo">0</span></div>
+                
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                    <div id="timer-box">1:30</div>
+                    <!-- 控制面板：播放、暫停、回首頁 -->
+                    <div id="control-panel">
+                        <button class="ctrl-btn" id="btn-play-pause" onclick="togglePlayPause()">⏸️ 暫停</button>
+                        <button class="ctrl-btn ctrl-btn-red" onclick="clickStopButton()">⏹️ 重置</button>
+                        <button class="ctrl-btn" onclick="returnToHome()">🏠 回首頁</button>
+                    </div>
+                </div>
+
+                <div id="p2-hud" class="player-hud">P2 右長者<br>分數: <span id="p2-score">0</span><br>連擊: <span id="p2-combo">0</span></div>
+            </div>
+
+            <!-- 初始啟動畫面 -->
+            <div id="start-modal" class="modal">
+                <h1>👵 樂活節奏大師 👴</h1>
+                <p>專為長者設計的溫和關節伸展、大腦協調有氧運動！</p>
+                <p id="start-msg">建議使用攝影機，系統會溫和偵測「左手舉高」、「右手舉高」與「輕輕點頭」。若無相機，也可點擊「鍵盤健康模式」用手指帶動大腦運動喔！</p>
+                <button class="btn btn-yellow" onclick="startInit(true)" style="width: 48%;">啟動 AI 攝影機</button>
+                <button class="btn btn-red" onclick="startInit(false)" style="width: 48%;">使用鍵盤運動</button>
+            </div>
+            
+            <!-- 載入畫面 -->
+            <div id="loading-modal" class="modal" style="display: none;">
+                <h1>啟動 智慧辨識系統 中...</h1>
+                <p id="loading-text">正在載入多重骨架追蹤模型與存取攝影機，請稍候。</p>
+                <button id="retry-camera-btn" class="btn btn-red btn-full" onclick="startInit(true)" style="display: none;">重新嘗試啟用攝影機</button>
+                <button id="fallback-keyboard-btn" class="btn btn-yellow btn-full" onclick="startInit(false)" style="display: none;">直接改用鍵盤運動模式</button>
+            </div>
+
+            <!-- 主選單 / 歌曲與難度選擇 -->
+            <div id="menu-modal" class="modal" style="display: none;">
+                <h1>🏆 請選擇運動曲目</h1>
+                <p id="menu-mode-desc" style="color: var(--primary); font-weight: bold; margin-bottom: 5px;">運動模式：攝影機 AI 體感偵測</p>
+                
+                <!-- 音樂播放模式選擇器 -->
+                <div class="music-mode-selector">
+                    <button id="mode-synth" class="mode-btn active" onclick="switchMusicEngine('synth')">⚡ 內建經典老歌 (100% 穩定有聲)</button>
+                    <button id="mode-youtube" class="mode-btn" onclick="switchMusicEngine('youtube')">📺 YouTube 雲端樂音 (需聯網)</button>
+                </div>
+
+                <div style="text-align: left; margin-bottom: 15px;">
+                    <strong>選擇遊玩人數：</strong>
+                    <button class="btn" onclick="selectMode(1)" id="btn-1p" style="width: 45%; margin: 5px 0;">單人樂活</button>
+                    <button class="btn btn-red" onclick="selectMode(2)" id="btn-2p" style="width: 45%; margin: 5px 0; opacity: 0.6;">雙人同樂</button>
+                </div>
+
+                <div style="text-align: left;" id="songs-picker-section">
+                    <strong>精選健康伸展操歌曲 (每首均剪輯至 1.5 分鐘)：</strong>
+                    <div id="songs-list">
+                        <!-- 5首經典優質音樂 -->
+                        <button class="song-btn active" onclick="selectSong(0, 'Uz_r73k56_c')">
+                            <span>🎵 1. 茉莉花 (經典和緩伸展)</span> <span class="song-duration">1.5 分鐘</span>
+                        </button>
+                        <button class="song-btn" onclick="selectSong(1, '8u_O2Y_A3jA')">
+                            <span>🎵 2. 何日君再來 (頸肩輕快舒緩)</span> <span class="song-duration">1.5 分鐘</span>
+                        </button>
+                        <button class="song-btn" onclick="selectSong(2, '99_0GfW-6AY')">
+                            <span>🎵 3. 夜來香 (腦力活潑律動)</span> <span class="song-duration">1.5 分鐘</span>
+                        </button>
+                        <button class="song-btn" onclick="selectSong(3, 'bO5g95Nu9vA')">
+                            <span>🎵 4. 天涯歌女 (柔順溫潤放鬆)</span> <span class="song-duration">1.5 分鐘</span>
+                        </button>
+                        <button class="song-btn" onclick="selectSong(4, 'J67Adf8Z8_k')">
+                            <span>🎵 5. 月亮代表我的心 (經典舒壓操)</span> <span class="song-duration">1.5 分鐘</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="keyboard-guide-pnl" style="display: none;">
+                    <strong>⌨️ 鍵盤模式操作指引：</strong><br>
+                    <span>左邊長者 (P1)：按 [A] 舉左手 | 按 [S] 舉右手 | 按 [D] 輕輕點頭</span><br>
+                    <span id="p2-keyboard-guide" style="display:none;">右邊長者 (P2)：按 [J] 舉左手 | 按 [K] 舉右手 | 按 [L] 輕輕點頭</span>
+                </div>
+
+                <div id="diff-section" class="diff-container" style="display: block;">
+                    <strong>選擇速度，點擊即可開始：</strong><br>
+                    <button class="btn btn-yellow" onclick="startGame('easy')">簡單 (慢速暖身)</button>
+                    <button class="btn" onclick="startGame('normal')">普通 (標準有氧)</button>
+                    <button class="btn btn-red" onclick="startGame('hard')">靈活 (敏捷律動)</button>
+                </div>
+            </div>
+
+            <!-- 結算畫面 -->
+            <div id="result-modal" class="modal" style="display: none;">
+                <h1>🎉 運動完成了！</h1>
+                <h2 id="result-text" style="color: var(--yellow);"></h2>
+                <p>做得太棒了！您完成了 1.5 分鐘的有氧大腦開發伸展操！</p>
+                <p>有好好活動頸椎、伸展雙臂，今天也十分有朝氣喔！</p>
+                <p>請記得喝杯溫開水、稍微休息一下！</p>
+                <button class="btn btn-full" onclick="location.reload()">重新挑戰 / 選擇曲目</button>
+            </div>
+
+            <!-- 動作圖例 -->
+            <div id="action-guide" style="display: none;">
+                <span class="guide-item g-red">🔴 左手舉高高</span>
+                <span class="guide-item g-blue">🔵 右手舉高高</span>
+                <span class="guide-item g-yellow">🟡 輕輕點點頭</span>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- 網頁電子音樂合成引擎 (精細改版五大中文經典歌曲) ---
+    let audioCtx;
+    let synthInterval;
+    let currentBeat = 0;
+    let gameMusicEngine = 'synth'; // 'synth' or 'youtube'
+    let selectedSongIdx = 0; // 當前選擇的經典老歌
+    const tempo = 100; // 更適合長者的優雅慢速 100 BPM
+    const beatDuration = 60 / tempo;
+
+    // 定義 5 首老歌的名曲簡譜音高 (以 C4 調式與頻率對應)
+    const pitches = {
+        C3: 130.81, D3: 146.83, E3: 164.81, G3: 196.00, A3: 220.00,
+        C4: 261.63, D4: 293.66, E4: 329.63, G4: 392.00, A4: 440.00,
+        C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99, A5: 880.00,
+        C6: 1046.50, REST: 0
+    };
+
+    // 經典名曲旋律陣列與低音聲部
+    const classicSongsMelodies = [
+        // 1. 茉莉花
+        {
+            melody: [
+                'E4', 'E4', 'G4', 'A4', 'C5', 'C5', 'A4', 'G4',
+                'E4', 'E4', 'G4', 'A4', 'G4', 'E4', 'D4', 'C4',
+                'D4', 'D4', 'E4', 'G4', 'A4', 'G4', 'D4', 'E4',
+                'C4', 'D4', 'E4', 'D4', 'C4', 'A3', 'G3', 'C4'
+            ],
+            bass: ['C3', 'G3', 'A3', 'E3', 'C3', 'G3', 'F3', 'C3']
+        },
+        // 2. 何日君再來
+        {
+            melody: [
+                'G4', 'A4', 'C5', 'D5', 'C5', 'A4', 'G4', 'E4',
+                'D4', 'E4', 'G4', 'A4', 'G4', 'D4', 'E4', 'G4',
+                'A4', 'C5', 'D5', 'E5', 'D5', 'C5', 'A4', 'G4',
+                'E4', 'D4', 'C4', 'A3', 'C4', 'D4', 'C4', 'REST'
+            ],
+            bass: ['G3', 'C3', 'D3', 'G3', 'A3', 'F3', 'G3', 'C3']
+        },
+        // 3. 夜來香
+        {
+            melody: [
+                'G4', 'C5', 'E5', 'D5', 'C5', 'A4', 'C5', 'G4',
+                'E4', 'D4', 'E4', 'G4', 'A4', 'G4', 'D4', 'E4',
+                'G4', 'C5', 'E5', 'G5', 'E5', 'D5', 'C5', 'A4',
+                'C5', 'A4', 'G4', 'E4', 'D4', 'E4', 'C4', 'REST'
+            ],
+            bass: ['C3', 'E3', 'A3', 'F3', 'G3', 'C3', 'F3', 'G3']
+        },
+        // 4. 天涯歌女
+        {
+            melody: [
+                'C4', 'D4', 'E4', 'G4', 'A4', 'G4', 'E4', 'C4',
+                'D4', 'E4', 'D4', 'C4', 'A3', 'G3', 'A3', 'C4',
+                'E4', 'G4', 'A4', 'C5', 'A4', 'G4', 'E4', 'D4',
+                'E4', 'C4', 'D4', 'A3', 'C4', 'D4', 'C4', 'REST'
+            ],
+            bass: ['C3', 'A3', 'F3', 'C3', 'E3', 'A3', 'D3', 'C3']
+        },
+        // 5. 月亮代表我的心
+        {
+            melody: [
+                'C4', 'E4', 'G4', 'C5', 'B4', 'A4', 'A4', 'C5',
+                'B4', 'A4', 'G4', 'E4', 'C4', 'D4', 'E4', 'D4',
+                'D4', 'E4', 'F4', 'A4', 'G4', 'F4', 'E4', 'C4',
+                'D4', 'E4', 'F4', 'D4', 'E4', 'D4', 'C4', 'REST'
+            ],
+            bass: ['C3', 'E3', 'A3', 'F3', 'G3', 'E3', 'D3', 'C3']
+        }
+    ];
+
+    function startSynthMusic() {
+        stopSynthMusic();
+        try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        } catch(e) {
+            console.error("不支援 Web Audio API:", e);
+            return;
+        }
+
+        currentBeat = 0;
+        const currentSong = classicSongsMelodies[selectedSongIdx];
+
+        synthInterval = setInterval(() => {
+            if (gameState !== 'playing') {
+                stopSynthMusic();
+                return;
+            }
+            
+            const time = audioCtx.currentTime;
+            
+            // 輕巧舒緩的拍點鼓聲 (指引運動律動)
+            if (currentBeat % 2 === 0) {
+                playDrumKick(45, time, 0.12);
+            } else {
+                playDrumHat(time, 0.04);
+            }
+            
+            // 經典旋律播放
+            const melodyLen = currentSong.melody.length;
+            const melodyNoteName = currentSong.melody[currentBeat % melodyLen];
+            let targetPitch = pitches[melodyNoteName];
+            
+            // 修正 B4 被簡寫等潛在的未定義音名防呆
+            if (melodyNoteName === 'B4') targetPitch = 493.88; 
+            if (melodyNoteName === 'F4') targetPitch = 349.23;
+
+            if (targetPitch && targetPitch > 0) {
+                // 播放柔和的圓潤正弦波主音色 (類似八音盒敲擊)
+                playSoftTone(targetPitch, time, 0.45, 0.05);
+            }
+
+            // 優雅低音伴奏聲部 (每4拍切換一次和弦根音)
+            if (currentBeat % 4 === 0) {
+                const bassLen = currentSong.bass.length;
+                const bassNoteName = currentSong.bass[Math.floor(currentBeat / 4) % bassLen];
+                const bassPitch = pitches[bassNoteName] || 98.00;
+                playSoftTone(bassPitch, time, 0.7, 0.08);
+            }
+            
+            currentBeat++;
+        }, (beatDuration / 2) * 1000); // 半拍間隔 (一拍兩音)
+    }
+
+    function playSoftTone(freq, startTime, duration, vol) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        
+        osc.type = 'sine'; // 正弦波，最適合長者雙耳
+        osc.frequency.setValueAtTime(freq, startTime);
+        
+        gain.gain.setValueAtTime(vol, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+    }
+
+    function playDrumKick(freq, startTime, duration) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        
+        osc.frequency.setValueAtTime(freq * 1.5, startTime);
+        osc.frequency.exponentialRampToValueAtTime(10, startTime + duration);
+        
+        gain.gain.setValueAtTime(0.18, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+    }
+
+    function playDrumHat(startTime, duration) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(7000, startTime);
+        gain.gain.setValueAtTime(0.01, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+    }
+
+    function stopSynthMusic() {
+        if (synthInterval) {
+            clearInterval(synthInterval);
+            synthInterval = null;
+        }
+        if (audioCtx) {
+            try {
+                audioCtx.close();
+            } catch(e){}
+            audioCtx = null;
+        }
+    }
+
+    function switchMusicEngine(engine) {
+        gameMusicEngine = engine;
+        document.getElementById('mode-synth').classList.toggle('active', engine === 'synth');
+        document.getElementById('mode-youtube').classList.toggle('active', engine === 'youtube');
+        
+        // 切換時重置當前歌曲索引為首首
+        selectSong(0, 'Uz_r73k56_c');
+    }
+
+    // --- YouTube API 整合 ---
+    let ytPlayer;
+    let selectedVideoId = 'Uz_r73k56_c'; // 預設第一首
+    let ytPlayerReady = false;
+
+    function onYouTubeIframeAPIReady() {
+        ytPlayer = new YT.Player('yt-player', {
+            height: '90',
+            width: '120',
+            videoId: selectedVideoId,
+            playerVars: {
+                'playsinline': 1,
+                'controls': 0,
+                'disablekb': 1,
+                'fs': 0,
+                'rel': 0,
+                'modestbranding': 1
+            },
+            events: {
+                'onReady': onPlayerReady,
+                'onStateChange': onPlayerStateChange
+            }
+        });
+    }
+
+    function onPlayerReady(event) {
+        ytPlayerReady = true;
+    }
+
+    function onPlayerStateChange(event) {
+        if (event.data === YT.PlayerState.ENDED) {
+            endGame();
+        }
+    }
+
+    function selectSong(index, videoId) {
+        selectedSongIdx = index; // 記憶選擇的歌曲索引
+        selectedVideoId = videoId;
+        
+        const buttons = document.querySelectorAll('.song-btn');
+        buttons.forEach((btn, idx) => {
+            if (idx === index) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+
+        if (gameMusicEngine === 'youtube' && ytPlayerReady && ytPlayer) {
+            ytPlayer.cueVideoById(videoId);
+        }
+    }
+
+    // 控制面板功能：播放與暫停
+    function togglePlayPause() {
+        if (gameState !== 'playing') return;
+        const btn = document.getElementById('btn-play-pause');
+        
+        if (gameMusicEngine === 'youtube' && ytPlayerReady && ytPlayer) {
+            const state = ytPlayer.getPlayerState();
+            if (state === YT.PlayerState.PLAYING) {
+                ytPlayer.pauseVideo();
+                btn.innerText = "▶️ 繼續";
+                showMsg("遊戲已暫停");
+            } else {
+                ytPlayer.playVideo();
+                btn.innerText = "⏸️ 暫停";
+                showMsg("繼續運動！");
+            }
+        } else {
+            // 電子樂合成暫停/恢復
+            if (synthInterval) {
+                stopSynthMusic();
+                btn.innerText = "▶️ 繼續";
+                showMsg("遊戲已暫停");
+            } else {
+                startSynthMusic();
+                btn.innerText = "⏸️ 暫停";
+                showMsg("繼續運動！");
+            }
+        }
+    }
+
+    // 控制面板功能：重置音樂與遊戲
+    function clickStopButton() {
+        if (confirm("確定要重新開始這首曲子嗎？分數與時間將會重設。")) {
+            players.forEach(p => { p.score = 0; p.combo = 0; p.noseHistory = []; });
+            notes = [];
+            updateHUD();
+            
+            // 重置時間
+            gameStartTime = Date.now();
+            
+            if (gameMusicEngine === 'youtube' && ytPlayerReady && ytPlayer) {
+                ytPlayer.stopVideo();
+                ytPlayer.playVideo();
+            } else {
+                startSynthMusic();
+            }
+            showMsg("已重新開始！");
+        }
+    }
+
+    // 控制面板功能：回首頁
+    function returnToHome() {
+        if (confirm("要結束當前運動並回到主選單嗎？")) {
+            stopSynthMusic();
+            if (ytPlayerReady && ytPlayer) {
+                ytPlayer.stopVideo();
+            }
+            
+            gameState = 'menu';
+            document.getElementById('p1-hud').style.display = 'none';
+            document.getElementById('p2-hud').style.display = 'none';
+            timerBox.style.display = 'none';
+            document.getElementById('control-panel').style.display = 'none';
+            document.getElementById('action-guide').style.display = 'none';
+            document.getElementById('menu-modal').style.display = 'block';
+            notes = [];
+        }
+    }
+
+    // --- 系統主程式變數 ---
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const timerBox = document.getElementById('timer-box');
+    
+    let detector;
+    let gameState = 'init'; // init, menu, playing, over
+    let isTwoPlayer = false;
+    let useCamera = true;
+    let animationId;
+    
+    // 精準 1.5 分鐘 (90秒)
+    const maxGameTime = 90; 
+    let gameStartTime = 0;
+    
+    // 速度調整 (為長者降低速度與密度，確保安全舒緩)
+    let diffSettings = { speed: 3, spawnRate: 0.015 };
+    let players = [
+        { id: 'P1', x: canvas.width / 2, score: 0, combo: 0, action: {}, hitEffect: 0, color: '#2ed573', noseHistory: [] },
+        { id: 'P2', x: canvas.width * 0.75, score: 0, combo: 0, action: {}, hitEffect: 0, color: '#ffa502', noseHistory: [] }
+    ];
+    let notes = [];
+
+    // 鍵盤狀態監聽變數 (A/S/D 與 J/K/L)
+    let keyboardActions = {
+        P1: { starJump: false, squat: false, kneeLift: false },
+        P2: { starJump: false, squat: false, kneeLift: false }
+    };
+
+    // --- UI 輔助函數 ---
+    function showMsg(text, duration = 3000) {
+        const msgBox = document.getElementById('msg-box');
+        msgBox.innerText = text;
+        msgBox.style.display = 'block';
+        msgBox.style.opacity = '1';
+        setTimeout(() => { msgBox.style.opacity = '0'; setTimeout(() => msgBox.style.display='none', 300); }, duration);
+    }
+
+    // --- 啟動初始化流程 ---
+    function startInit(requestCam) {
+        document.getElementById('start-modal').style.display = 'none';
+        document.getElementById('loading-modal').style.display = 'block';
+        document.getElementById('retry-camera-btn').style.display = 'none';
+        document.getElementById('fallback-keyboard-btn').style.display = 'none';
+        
+        useCamera = requestCam;
+        if (useCamera) {
+            document.getElementById('loading-text').innerText = "正在載入多重智慧骨架模型與攝影機，請稍候。";
+            initSystem();
+        } else {
+            initKeyboardMode();
+        }
+    }
+
+    // --- 直接初始化鍵盤運動模式 ---
+    function initKeyboardMode() {
+        useCamera = false;
+        document.getElementById('loading-modal').style.display = 'none';
+        document.getElementById('menu-modal').style.display = 'block';
+        document.getElementById('menu-mode-desc').innerText = "運動模式：⚡ 鍵盤動感操 (免相機)";
+        document.getElementById('keyboard-guide-pnl').style.display = 'block';
+        
+        canvas.width = 640;
+        canvas.height = 480;
+        players[0].x = canvas.width / 2;
+        
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('keyup', handleKeyUp);
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        
+        detectFrame();
+    }
+
+    // --- 初始化 AI 模型與攝影機 ---
+    async function initSystem() {
+        try {
+            await tf.setBackend('webgl');
+            await tf.ready();
+            
+            if (!detector) {
+                const model = poseDetection.SupportedModels.MoveNet;
+                const detectorConfig = { modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING };
+                detector = await poseDetection.createDetector(model, detectorConfig);
+            }
+            
+            const constraints = { 
+                video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, 
+                audio: false 
+            };
+
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+            } catch (mediaError) {
+                console.warn("標準相機開啟失敗，嘗試通用設定:", mediaError);
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            }
+
+            video.srcObject = stream;
+            
+            video.onloadedmetadata = () => {
+                video.play();
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                players[0].x = canvas.width / 2;
+                
+                document.getElementById('loading-modal').style.display = 'none';
+                document.getElementById('menu-modal').style.display = 'block';
+                document.getElementById('menu-mode-desc').innerText = "運動模式：📷 攝影機 AI 體感偵測";
+                document.getElementById('keyboard-guide-pnl').style.display = 'none';
+                
+                detectFrame();
+            };
+        } catch (e) {
+            console.error("相機權限或載入失敗，切換至鍵盤方案:", e);
+            showMsg("已為您自動啟用鍵盤健康操控模式！", 4000);
+            
+            document.getElementById('loading-text').innerHTML = 
+                `<span style="color:var(--yellow); font-weight:bold;">已成功切換至鍵盤健康模式</span><br><br>` +
+                `說明：您的裝置目前不支援或拒絕了攝影機權限。<br>` +
+                `別擔心！您可以直接使用鍵盤來運動！`;
+            
+            document.getElementById('retry-camera-btn').style.display = 'block';
+            document.getElementById('fallback-keyboard-btn').style.display = 'block';
+        }
+    }
+
+    // --- 鍵盤控制監聽器 (P1 / P2 雙人高親和設定) ---
+    function handleKeyDown(e) {
+        const key = e.key.toLowerCase();
+        // Player 1 控制 (A / S / D)
+        if (key === 'a') keyboardActions.P1.starJump = true; // 左手
+        if (key === 's') keyboardActions.P1.squat = true;    // 右手
+        if (key === 'd') keyboardActions.P1.kneeLift = true; // 點頭
+
+        // Player 2 控制 (J / K / L)
+        if (key === 'j') keyboardActions.P2.starJump = true; // 左手
+        if (key === 'k') keyboardActions.P2.squat = true;    // 右手
+        if (key === 'l') keyboardActions.P2.kneeLift = true; // 點頭
+    }
+
+    function handleKeyUp(e) {
+        const key = e.key.toLowerCase();
+        if (key === 'a') keyboardActions.P1.starJump = false;
+        if (key === 's') keyboardActions.P1.squat = false;
+        if (key === 'd') keyboardActions.P1.kneeLift = false;
+
+        if (key === 'j') keyboardActions.P2.starJump = false;
+        if (key === 'k') keyboardActions.P2.squat = false;
+        if (key === 'l') keyboardActions.P2.kneeLift = false;
+    }
+
+    // --- 遊戲模式選擇 ---
+    function selectMode(playersCount) {
+        isTwoPlayer = (playersCount === 2);
+        document.getElementById('btn-1p').style.opacity = isTwoPlayer ? '0.6' : '1';
+        document.getElementById('btn-2p').style.opacity = isTwoPlayer ? '1' : '0.6';
+        
+        if (isTwoPlayer) {
+            players[0].x = canvas.width * 0.25;
+            players[1].x = canvas.width * 0.75;
+            document.getElementById('p2-keyboard-guide').style.display = 'inline';
+        } else {
+            players[0].x = canvas.width / 2;
+            document.getElementById('p2-keyboard-guide').style.display = 'none';
+        }
+    }
+
+    // --- 開始遊戲主程式 ---
+    function startGame(difficulty) {
+        const diffConfig = {
+            easy: { speed: 2.0, spawnRate: 0.015 },
+            normal: { speed: 3.2, spawnRate: 0.022 },
+            hard: { speed: 4.5, spawnRate: 0.03 }
+        };
+        diffSettings = diffConfig[difficulty];
+        
+        // UI 切換
+        document.getElementById('menu-modal').style.display = 'none';
+        document.getElementById('p1-hud').style.display = 'block';
+        if (isTwoPlayer) document.getElementById('p2-hud').style.display = 'block';
+        timerBox.style.display = 'block';
+        document.getElementById('control-panel').style.display = 'flex';
+        document.getElementById('action-guide').style.display = 'block';
+        document.getElementById('btn-play-pause').innerText = "⏸️ 暫停";
+        
+        // 狀態重置
+        players.forEach(p => { p.score = 0; p.combo = 0; p.hitEffect = 0; p.noseHistory = []; });
+        notes = [];
+        updateHUD();
+        
+        gameState = 'playing';
+        gameStartTime = Date.now(); // 設定開始時間
+        
+        // 啟動音樂
+        if (gameMusicEngine === 'youtube' && ytPlayerReady && ytPlayer) {
+            ytPlayer.seekTo(0);
+            ytPlayer.playVideo();
+        } else {
+            startSynthMusic();
+        }
+    }
+
+    function endGame() {
+        gameState = 'over';
+        stopSynthMusic();
+        if (ytPlayerReady && ytPlayer) {
+            ytPlayer.stopVideo();
+        }
+        
+        document.getElementById('p1-hud').style.display = 'none';
+        document.getElementById('p2-hud').style.display = 'none';
+        timerBox.style.display = 'none';
+        document.getElementById('control-panel').style.display = 'none';
+        document.getElementById('action-guide').style.display = 'none';
+        
+        const resultModal = document.getElementById('result-modal');
+        const resText = document.getElementById('result-text');
+        resultModal.style.display = 'block';
+        
+        if (!isTwoPlayer) {
+            resText.innerHTML = `總得分: ${players[0].score}`;
+        } else {
+            resText.innerHTML = `P1 左方: ${players[0].score} 分<br>P2 右方: ${players[1].score} 分<br><br>`;
+            if (players[0].score > players[1].score) resText.innerHTML += "🏆 P1 表現亮眼！";
+            else if (players[1].score > players[0].score) resText.innerHTML += "🏆 P2 表現亮眼！";
+            else resText.innerHTML += "🤝 兩位長者都非常優秀，平手！";
+        }
+    }
+
+    // --- AI 分析與繪製迴圈 ---
+    async function detectFrame() {
+        ctx.save();
+        
+        if (useCamera && detector && video.readyState === 4) {
+            const poses = await detector.estimatePoses(video);
+            
+            // 鏡像翻轉畫布
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // 溫和姿勢判定 + 點點頭動作
+            processElderlyPoses(poses);
+            
+            if(gameState === 'playing' || gameState === 'menu') {
+                drawSkeletons(poses);
+            }
+        } else {
+            drawElderlyFriendlyBackground();
+            
+            players[0].action = { ...keyboardActions.P1 };
+            players[1].action = { ...keyboardActions.P2 };
+            
+            drawKeyboardVisualFeedback();
+        }
+
+        // 渲染遊戲物件
+        if (gameState === 'playing') {
+            renderGameLoop();
+        }
+        
+        ctx.restore();
+        animationId = requestAnimationFrame(detectFrame);
+    }
+
+    // --- 長者友善高對比背景 ---
+    function drawElderlyFriendlyBackground() {
+        let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grad.addColorStop(0, '#1a252f');
+        grad.addColorStop(1, '#2c3e50');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(canvas.width/2, canvas.height/2, 120, 0, 2*Math.PI);
+        ctx.stroke();
+    }
+
+    // --- 鍵盤回饋視覺化 ---
+    function drawKeyboardVisualFeedback() {
+        ctx.font = '24px bold sans-serif';
+        ctx.textAlign = 'center';
+        
+        players.forEach((p, idx) => {
+            if (!isTwoPlayer && idx === 1) return;
+            let actionText = "等待動作中";
+            let color = '#a0aec0';
+            
+            if (p.action.starJump) { actionText = "🔴 左手舉高高"; color = '#ff4757'; }
+            else if (p.action.squat) { actionText = "🔵 右手舉高高"; color = '#1e90ff'; }
+            else if (p.action.kneeLift) { actionText = "🟡 輕輕點點頭"; color = '#ffa502'; }
+            
+            ctx.fillStyle = color;
+            ctx.fillText(actionText, p.x, canvas.height * 0.18);
+        });
+    }
+
+    // --- 體感演算法 (點點頭 + 舉左右手) ---
+    function processElderlyPoses(poses) {
+        players.forEach(p => p.action = { starJump: false, squat: false, kneeLift: false });
+
+        const validPoses = poses.filter(p => p.score > 0.2)
+                                .sort((a, b) => a.keypoints[0].x - b.keypoints[0].x);
+
+        validPoses.forEach((pose, index) => {
+            if (!isTwoPlayer && index > 0) return;
+            if (isTwoPlayer && index > 1) return;
+            
+            const pIdx = index;
+            const p = players[pIdx];
+            const kp = pose.keypoints;
+            const getK = (name) => kp.find(k => k.name === name);
+            
+            const ls = getK('left_shoulder'), rs = getK('right_shoulder');
+            const lw = getK('left_wrist'), rw = getK('right_wrist');
+            const nose = getK('nose');
+
+            // 1. 左右手臂舉高偵測
+            if (ls && rs && lw && rw && ls.score > 0.3 && rs.score > 0.3) {
+                const leftRaised = lw.score > 0.3 && lw.y < ls.y;
+                const rightRaised = rw.score > 0.3 && rw.y < rs.y;
+
+                if (leftRaised && !rightRaised) {
+                    p.action.starJump = true; // 🔴 左手
+                } else if (rightRaised && !leftRaised) {
+                    p.action.squat = true;     // 🔵 右手
+                }
+            }
+
+            // 2. 頸部舒緩「點點頭」偵測：
+            // 我們監控鼻子在垂直高度（Y座標）的連續波動
+            if (nose && nose.score > 0.4) {
+                if (!p.noseHistory) p.noseHistory = [];
+                p.noseHistory.push(nose.y);
+                if (p.noseHistory.length > 12) p.noseHistory.shift(); // 保持12個畫面的快照歷史 (約 0.3-0.4 秒)
+
+                if (p.noseHistory.length >= 8) {
+                    const maxVal = Math.max(...p.noseHistory);
+                    const minVal = Math.min(...p.noseHistory);
+                    const diffY = maxVal - minVal;
+                    
+                    // 當鼻子高度在短時間內有高低變化，且高度差適中（長者輕微點頭）則判定為 Nodding
+                    // 在 640x480 解析度下，0.035 到 0.15 屬於完美的點頭運動幅寬
+                    if (diffY > 0.038 && diffY < 0.14) {
+                        p.action.kneeLift = true; // 🟡 點點頭
+                    }
+                }
+            }
+        });
+    }
+
+    function drawSkeletons(poses) {
+        ctx.fillStyle = '#00ffcc';
+        poses.forEach((pose, idx) => {
+            if (!isTwoPlayer && idx > 0) return;
+            if (isTwoPlayer && idx > 1) return;
+            
+            pose.keypoints.forEach(kp => {
+                if (kp.score > 0.3) {
+                    ctx.beginPath();
+                    ctx.arc(kp.x, kp.y, 6, 0, 2*Math.PI);
+                    ctx.fill();
+                }
+            });
+        });
+    }
+
+    // --- 遊戲渲染核心 ---
+    function renderGameLoop() {
+        const hitZoneY = canvas.height * 0.78; // 判定線位置
+        
+        if (useCamera) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        // 繪製判定軌道線與判定區
+        ctx.beginPath();
+        ctx.moveTo(0, hitZoneY); ctx.lineTo(canvas.width, hitZoneY);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; ctx.lineWidth = 3; ctx.stroke();
+        
+        players.forEach((p, idx) => {
+            if (!isTwoPlayer && idx === 1) return;
+            
+            // 判定大圓圈
+            ctx.beginPath();
+            ctx.arc(p.x, hitZoneY, 45, 0, 2*Math.PI);
+            ctx.strokeStyle = p.hitEffect > 0 ? '#fff' : p.color;
+            ctx.lineWidth = p.hitEffect > 0 ? 10 : 4;
+            ctx.stroke();
+            
+            if (p.hitEffect > 0) p.hitEffect--;
+            
+            // 標示軌道所屬玩家
+            ctx.save();
+            ctx.translate(p.x, hitZoneY + 65);
+            ctx.scale(-1, 1);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText(p.id, 0, 0);
+            ctx.restore();
+        });
+
+        // 隨機生成適合長者節奏的音符
+        if (Math.random() < diffSettings.spawnRate) {
+            const randType = Math.random();
+            let type = 'red'; let len = 0;
+            if (randType > 0.8) { type = 'yellow'; len = canvas.height * 0.22; } // 黃色點頭長條
+            else if (randType > 0.4) { type = 'blue'; }
+
+            players.forEach((p, idx) => {
+                if (!isTwoPlayer && idx === 1) return;
+                notes.push({ x: p.x, y: -50, type: type, len: len, hit: false, pIdx: idx, scored: false });
+            });
+        }
+
+        // 更新與繪製音符
+        for (let i = notes.length - 1; i >= 0; i--) {
+            let n = notes[i];
+            if (!n.hit) {
+                n.y += diffSettings.speed;
+                const p = players[n.pIdx];
+
+                // 繪製極易辨識的大號音符
+                if (n.type === 'yellow') {
+                    ctx.fillStyle = 'rgba(255, 165, 2, 0.85)';
+                    ctx.fillRect(n.x - 30, n.y - n.len, 60, n.len);
+                    ctx.beginPath(); ctx.arc(n.x, n.y, 30, 0, 2*Math.PI); ctx.fill();
+                } else {
+                    ctx.beginPath(); ctx.arc(n.x, n.y, 30, 0, 2*Math.PI);
+                    ctx.fillStyle = n.type === 'red' ? '#ff4757' : '#1e90ff';
+                    ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+                }
+
+                // 碰撞判定邏輯 (增加寬鬆判定區，完美契合長者動作時間)
+                if (n.type === 'yellow') {
+                    // 黃長條：在判定線上且長者輕微且連續點頭
+                    if (n.y >= hitZoneY && (n.y - n.len) <= hitZoneY) {
+                        if (p.action.kneeLift) { 
+                            p.score += 10; p.combo++; p.hitEffect = 8; updateHUD();
+                        }
+                    }
+                    if (n.y - n.len > canvas.height) notes.splice(i, 1);
+                } else {
+                    // 單擊音符判定區
+                    const dist = Math.abs(n.y - hitZoneY);
+                    if (dist < 50) {
+                        if ((n.type === 'red' && p.action.starJump) || 
+                            (n.type === 'blue' && p.action.squat)) {
+                            n.hit = true;
+                            p.score += 100 + (p.combo * 5); p.combo++; p.hitEffect = 18;
+                            updateHUD();
+                        }
+                    }
+                    // 錯過判定 (Miss)
+                    if (n.y > hitZoneY + 60 && !n.hit && !n.scored) {
+                        n.scored = true; p.combo = 0; updateHUD();
+                    }
+                    if (n.y > canvas.height + 60) notes.splice(i, 1);
+                }
+            } else {
+                notes.splice(i, 1);
+            }
+        }
+
+        // 計算精準 1.5 分鐘 (90秒) 的剩餘時間
+        let elapsedSeconds = (Date.now() - gameStartTime) / 1000;
+        let timeRemaining = maxGameTime - elapsedSeconds;
+        
+        if (timeRemaining <= 0) {
+            endGame();
+        } else {
+            let m = Math.floor(timeRemaining / 60);
+            let s = Math.floor(timeRemaining % 60);
+            timerBox.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+    }
+
+    function updateHUD() {
+        document.getElementById('p1-score').innerText = players[0].score;
+        document.getElementById('p1-combo').innerText = players[0].combo;
+        if (isTwoPlayer) {
+            document.getElementById('p2-score').innerText = players[1].score;
+            document.getElementById('p2-combo').innerText = players[1].combo;
+        }
+    }
+</script>
+</body>
+</html>
